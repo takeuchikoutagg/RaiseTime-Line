@@ -4,7 +4,7 @@
 
 ## プロジェクト概要
 
-X（旧Twitter）を参考にした、学習用のタイムライン型テキストSNS。技術スタックは React + Spring Boot（Java）+ PostgreSQL、画像の保存先は AWS S3。詳細は [README.md](./README.md) および [要件定義.md](./要件定義.md) を参照。
+X（旧Twitter）を参考にした、学習用のタイムライン型テキストSNS。技術スタックは React + Spring Boot（Java）+ PostgreSQL、画像の保存先は AWS S3。詳細は [README.md](./README.md) および [docs/要件定義.md](./docs/要件定義.md) を参照。
 
 現在は要件定義・設計まで完了しており、実装はこれから。仕様は `docs/` 配下のドキュメント（特に [docs/機能定義書/](./docs/機能定義書/)）に従う。
 
