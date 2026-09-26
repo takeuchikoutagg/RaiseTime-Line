@@ -69,6 +69,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 要件定義.md  … 要件定義書（ここから各ドキュメントへ進む）
 docs/       … 設計ドキュメント（機能一覧・機能定義書・画面設計・ER図・インフラ構成図など）
 .claude/    … Claude Code 向けの設定・プロジェクトスキル
+.githooks/  … Git フック（main への直接プッシュを防ぐ pre-push）
 CLAUDE.md   … Claude Code 向けの作業ガイドライン・開発ルール
 ```
 
@@ -98,5 +99,11 @@ CLAUDE.md   … Claude Code 向けの作業ガイドライン・開発ルール
 
 ブランチ運用（issue ごとの作業ブランチ・Pull Request 経由でのマージ）などの開発ルールは [CLAUDE.md](./CLAUDE.md) を参照。
 
-- `main` ブランチへの直接プッシュは禁止（GitHub のブランチ保護で設定済み）
-- Pull Request をマージしたら、作業ブランチは自動で削除される
+- `main` ブランチへの直接プッシュは禁止。GitHub Free のプライベートリポジトリではブランチ保護が使えないため、ローカルの Git フック（[.githooks/pre-push](./.githooks/pre-push)）で止めている
+- Pull Request をマージしたら、作業ブランチは自動で削除される（GitHub のリポジトリ設定で有効化済み）
+
+clone したら、最初に次のコマンドでフックを有効にする。
+
+```bash
+git config core.hooksPath .githooks
+```

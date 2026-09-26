@@ -1,0 +1,14 @@
+#!/bin/sh
+# main ブランチへの直接プッシュを禁止する（GitHub Free のプライベートリポジトリではブランチ保護が使えないため）
+# 有効化: git config core.hooksPath .githooks
+protected="refs/heads/main"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "$protected" ]; then
+    echo "エラー: main ブランチへの直接プッシュは禁止されています。" >&2
+    echo "作業用ブランチ（例: issue-12）にプッシュし、Pull Request を作成してください。" >&2
+    exit 1
+  fi
+done
+
+exit 0

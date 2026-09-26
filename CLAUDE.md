@@ -19,7 +19,8 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 - **mainブランチに直接変更を加えない。** 作業は必ずissueごとに作業用ブランチを作成して行う。
 - ブランチはissueに対応する形で作成する（例: `issue-12`、`feature/12-post-edit` など、issue番号がわかる命名にする）。
 - 作業が完了したら、mainブランチへはPull Requestを経由してマージする。
-- mainブランチはGitHubのブランチ保護で直接プッシュを禁止している。Pull Requestをマージすると作業ブランチは自動で削除される。
+- mainブランチへの直接プッシュは、ローカルのGitフック（`.githooks/pre-push`、`git config core.hooksPath .githooks` で有効化）で止めている。GitHub Freeのプライベートリポジトリのためブランチ保護は使えない。フックを `--no-verify` で回避しない。
+- Pull Requestをマージすると作業ブランチは自動で削除される。
 
 ### ドキュメント
 
