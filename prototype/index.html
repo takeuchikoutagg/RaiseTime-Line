@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RaiseTime Line（プロトタイプ）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header__inner">
+    <a href="#/" class="app-header__logo">RaiseTime Line</a>
+    <nav class="app-nav" id="app-nav" hidden>
+      <a href="#/" class="app-nav__link" data-nav="timeline"><span class="app-nav__icon" aria-hidden="true">🏠</span><span class="app-nav__label">ホーム</span></a>
+      <a href="#/search" class="app-nav__link" data-nav="search"><span class="app-nav__icon" aria-hidden="true">🔍</span><span class="app-nav__label">検索</span></a>
+      <a href="#/" class="app-nav__link" data-nav="mypage" id="nav-mypage"><span class="app-nav__icon" aria-hidden="true">👤</span><span class="app-nav__label">マイページ</span></a>
+      <button type="button" class="app-nav__link app-nav__post" data-action="open-compose"><span class="app-nav__icon" aria-hidden="true">✏️</span><span class="app-nav__label">投稿</span></button>
+      <button type="button" class="app-nav__link" data-action="logout"><span class="app-nav__icon" aria-hidden="true">🚪</span><span class="app-nav__label">ログアウト</span></button>
+    </nav>
+  </div>
+</header>
+
+<main id="app" class="app-main"></main>
+
+<footer class="app-footer">
+  <p>これは HTML / CSS / JavaScript だけで作ったプロトタイプです。データはこのブラウザの localStorage にだけ保存されます。</p>
+  <button type="button" class="btn btn--small" data-action="reset-data">データを初期化</button>
+</footer>
+
+<!-- S-04 投稿作成・編集モーダル -->
+<dialog id="post-modal" class="modal">
+  <form id="post-form" class="modal__form" novalidate>
+    <div class="modal__header">
+      <h2 id="post-modal-title">新しい投稿</h2>
+      <button type="button" class="icon-btn" data-action="close-post-modal" aria-label="閉じる">×</button>
+    </div>
+    <textarea id="post-body" class="textarea" rows="5" placeholder="いまどうしてる？"></textarea>
+    <div id="post-image-preview" class="image-preview"></div>
+    <div class="modal__toolbar">
+      <label class="btn btn--small">
+        🖼 画像を追加
+        <input type="file" id="post-image-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+      </label>
+      <span id="post-counter" class="counter">0 / 280</span>
+    </div>
+    <p id="post-error" class="form-error" role="alert"></p>
+    <div class="modal__actions">
+      <button type="submit" id="post-submit" class="btn btn--primary">投稿する</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- S-08 投稿削除の確認モーダル -->
+<dialog id="delete-modal" class="modal modal--narrow">
+  <div class="modal__form">
+    <h2>この投稿を削除しますか？</h2>
+    <p class="modal__text">削除すると元に戻せません。<br>付いているコメントといいねも削除されます。</p>
+    <div class="modal__actions">
+      <button type="button" class="btn" data-action="close-delete-modal">キャンセル</button>
+      <button type="button" class="btn btn--danger" data-action="confirm-delete">削除する</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="script.js"></script>
+</body>
+</html>
