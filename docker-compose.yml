@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: raisetime-postgres
+    environment:
+      POSTGRES_DB: raisetime
+      POSTGRES_USER: raisetime
+      POSTGRES_PASSWORD: raisetime
+    ports:
+      # Taskmanagement（5433）やローカルの PostgreSQL（5432）と重ならないよう 5434 にする
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

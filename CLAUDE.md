@@ -6,11 +6,28 @@
 
 X（旧Twitter）を参考にした、学習用のタイムライン型テキストSNS。技術スタックは React + Spring Boot（Java）+ PostgreSQL、画像の保存先は AWS S3。詳細は [README.md](./README.md) および [docs/要件定義.md](./docs/要件定義.md) を参照。
 
-現在は要件定義・設計まで完了しており、実装はこれから。仕様は `docs/` 配下のドキュメント（特に [docs/機能定義書/](./docs/機能定義書/)）に従う。
+要件定義・設計・プロトタイプ（`prototype/`）まで完了し、本番実装を「バックエンド → フロントエンド → 品質チェック → インフラ構築」の順で進めている。仕様は `docs/` 配下のドキュメント（特に [docs/機能定義書/](./docs/機能定義書/)）に従う。
+
+## 技術構成
+
+- バックエンド：Spring Boot 4.1.0 / Java 25 / Gradle。DB アクセスは **MyBatis**（SQL は `src/main/resources/mapper/*.xml`。JPA は使わない）
+- DB：PostgreSQL 17（Docker Compose）。テーブルは **Flyway**（`src/main/resources/db/migration/`）だけで作る
+- 認証：セッション Cookie（Spring Security ＋ Spring Session JDBC）
 
 ## 起動コマンド
 
-実装前のため未整備。`.claude/skills/start-dev-servers/SKILL.md` は Taskmanagement（AI-java-study）から転用したもので、`backend/start.sh`・`frontend/start.sh` を作ったらこのプロジェクト用に内容を合わせる。
+起動方法の詳細は [README.md](./README.md#セットアップ起動方法) を参照。
+
+- PostgreSQL: `docker compose up -d`（ポート 5434）
+- バックエンド: `cd backend && ./start.sh`（ポート 8081）
+
+**サーバー起動時のポートに関するルール（必須）:**
+
+- サーバーは必ず `start.sh` 経由で起動する。`./gradlew bootRun` を直接実行しない。
+- ポートが競合していても、別のポートに逃がして起動してはならない。対象ポート（バックエンド 8081）を使用しているプロセスを停止してから、同じポートで起動する。
+- 隣の Taskmanagement プロジェクトが 8080 / 5173 / 5433 を使っているため、このプロジェクトは 8081 / 5174 / 5434 を使う。**Taskmanagement のポートのプロセスは止めない。**
+- 具体的な起動手順は `.claude/skills/start-dev-servers/SKILL.md` にスキルとして定義している。サーバー起動・動作確認が必要な場合はこのスキルに従う。
+- バックエンドのテスト（`./gradlew test`）は PostgreSQL が起動している必要がある。
 
 ## 開発ルール
 
