@@ -4,7 +4,7 @@
 
 DB は **PostgreSQL**。データ型は PostgreSQL の型で書いている。
 
-- `id` はすべて `bigint GENERATED ALWAYS AS IDENTITY`（自動採番）にする。Spring Boot（JPA）側では `@GeneratedValue(strategy = GenerationType.IDENTITY)` に対応する
+- `id` はすべて `bigint GENERATED ALWAYS AS IDENTITY`（自動採番）にする。MyBatis では Mapper XML の `useGeneratedKeys="true" keyProperty="id"` で、採番された id を受け取る
 - 日時はタイムゾーン付きの `timestamptz` にする
 - `id` は作成順に増えるため、「新しい順」の並べ替えとカーソル方式のページングには `id` を使う（[共通仕様 4章](./機能定義書/00_共通仕様.md#4-ページング)）
 
