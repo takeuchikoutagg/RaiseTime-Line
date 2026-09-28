@@ -11,7 +11,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 - データ保存先: 投稿・ユーザーなどのデータは PostgreSQL、投稿画像は AWS S3（DB には S3 のキーだけを保存）
 - インフラ: AWS（CloudFront / ALB / EC2 / RDS / S3）で構築する案を用意済み。AWS 上に構築するかは未定
 - 学習の目的: 認証・認可、CRUD、1対多・多対多（自己参照を含む）のリレーション、画像アップロード、AWS でのインフラ構築を一通り身につける
-- 実装状況: **要件定義・設計と、HTML / CSS / JavaScript のプロトタイプ（`prototype/`）まで完了**。本番の実装を「バックエンド → フロントエンド → 品質チェック → インフラ構築」の順で進めている。現在はバックエンドの開発環境まで（進み具合は [要件定義.md 15章](./docs/要件定義.md#15-実装状況まとめ) を参照）
+- 実装状況: **要件定義・設計と、HTML / CSS / JavaScript のプロトタイプ（`prototype/`）まで完了**。本番の実装を「バックエンド → フロントエンド → 品質チェック → インフラ構築」の順で進めている。現在はバックエンドの認証（新規登録・ログイン・ログアウト）まで（進み具合は [要件定義.md 15章](./docs/要件定義.md#15-実装状況まとめ) を参照）
 
 ## 主な機能
 
@@ -48,7 +48,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | DB アクセス | MyBatis（SQL は Mapper XML） | mybatis-spring-boot-starter 4.1.0 |
 | マイグレーション | Flyway | Spring Boot 管理のバージョン |
 | データベース | PostgreSQL（Docker） | PostgreSQL 17 |
-| 認証 | Spring Security ＋ Spring Session JDBC（セッション Cookie） | 認証工程（B2）で追加 |
+| 認証 | Spring Security ＋ Spring Session JDBC（セッション Cookie、CSRF は Cookie ＋ ヘッダー方式） | Spring Security 7.1.0 / Spring Session 4.1.0 |
 | 画像の保存先 | AWS S3（開発中は S3 互換の MinIO を予定） | - |
 | インフラ（案） | AWS（CloudFront / ALB / EC2 / RDS / S3） | - |
 | ドキュメント | Markdown（図は Mermaid） | - |
@@ -86,7 +86,7 @@ docker-compose.yml … 開発用の PostgreSQL
 
 1. PostgreSQL を起動: `docker compose up -d`（ポート 5434）
 2. バックエンドを起動: `backend/start.sh`（ポート 8081。使用中なら既存プロセスを停止してから `./gradlew bootRun` を起動する）
-3. 動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`
+3. 動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`、`curl http://localhost:8081/api/auth/me` → 401（ログインしていないため）
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
 - テスト: `cd backend && ./gradlew test`（PostgreSQL が起動している必要がある）。静的解析: `./gradlew checkstyleMain`
