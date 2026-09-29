@@ -8,6 +8,12 @@
         WHERE email = #{email}
     </select>
 
+    <select id="findById" resultType="com.example.raisetime.entity.User">
+        SELECT id, username, name, email, password_hash, created_at, updated_at
+        FROM users
+        WHERE id = #{id}
+    </select>
+
     <select id="existsByUsername" resultType="boolean">
         SELECT EXISTS (SELECT 1 FROM users WHERE username = #{username})
     </select>

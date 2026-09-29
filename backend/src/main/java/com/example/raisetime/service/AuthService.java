@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AuthService {
@@ -54,6 +55,13 @@ public class AuthService {
         }
         // セッションにはパスワードのハッシュを保存しない
         return new AuthUser(user.getId(), user.getUsername(), user.getName(), null);
+    }
+
+    // トークン更新のとき、最新のユーザー情報（名前など）でアクセストークンを作り直すために使う
+    public Optional<AuthUser> findUser(Long id) {
+        User user = userMapper.findById(id);
+        return Optional.ofNullable(user)
+                .map(u -> new AuthUser(u.getId(), u.getUsername(), u.getName(), null));
     }
 
     private static FieldErrorResponse toConflictError(DuplicateKeyException e) {

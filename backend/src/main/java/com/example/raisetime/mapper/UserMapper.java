@@ -9,6 +9,8 @@ public interface UserMapper {
 
     User findByEmail(String email);
 
+    User findById(Long id);
+
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);

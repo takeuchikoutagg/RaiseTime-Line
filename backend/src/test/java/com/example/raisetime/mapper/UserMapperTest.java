@@ -39,6 +39,15 @@ class UserMapperTest {
     }
 
     @Test
+    void findById_returnsUser_orNullWhenUnknown() {
+        User user = newUser("mapper_test", "mapper-test@example.com");
+        userMapper.insert(user);
+
+        assertThat(userMapper.findById(user.getId()).getUsername()).isEqualTo("mapper_test");
+        assertThat(userMapper.findById(-1L)).isNull();
+    }
+
+    @Test
     void findByEmail_unknown_returnsNull() {
         assertThat(userMapper.findByEmail("nobody@example.com")).isNull();
     }

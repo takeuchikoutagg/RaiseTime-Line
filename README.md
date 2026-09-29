@@ -48,7 +48,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | DB アクセス | MyBatis（SQL は Mapper XML） | mybatis-spring-boot-starter 4.1.0 |
 | マイグレーション | Flyway | Spring Boot 管理のバージョン |
 | データベース | PostgreSQL（Docker） | PostgreSQL 17 |
-| 認証 | Spring Security ＋ Spring Session JDBC（セッション Cookie、CSRF は Cookie ＋ ヘッダー方式） | Spring Security 7.1.0 / Spring Session 4.1.0 |
+| 認証 | Spring Security（OAuth2 Resource Server）で JWT。アクセストークン15分・リフレッシュトークン7日を HttpOnly Cookie で渡す。CSRF は Cookie ＋ ヘッダー方式 | Spring Security 7.1.0 |
 | 画像の保存先 | AWS S3（開発中は S3 互換の MinIO を予定） | - |
 | インフラ（案） | AWS（CloudFront / ALB / EC2 / RDS / S3） | - |
 | ドキュメント | Markdown（図は Mermaid） | - |
