@@ -20,6 +20,7 @@ erDiagram
     posts ||--o{ post_images : "添付する"
     posts ||--o{ comments : "コメントされる"
     posts ||--o{ likes : "いいねされる"
+    users ||--o{ refresh_tokens : "ログインする"
 
     users {
         bigint id PK
@@ -29,6 +30,15 @@ erDiagram
         varchar password_hash
         timestamptz created_at
         timestamptz updated_at
+    }
+    refresh_tokens {
+        bigint id PK
+        bigint user_id FK
+        char token_hash UK "SHA-256"
+        uuid family_id
+        timestamptz expires_at
+        timestamptz revoked_at "NULLなら使える"
+        timestamptz created_at
     }
     posts {
         bigint id PK
@@ -90,6 +100,22 @@ erDiagram
 | password_hash | varchar(255) | × | | BCrypt でハッシュ化したパスワード |
 | created_at | timestamptz | × | DEFAULT now() | |
 | updated_at | timestamptz | × | DEFAULT now() | |
+
+### refresh_tokens（リフレッシュトークン）
+
+ログイン状態を保つためのリフレッシュトークン（[F-02](./機能定義書/F-02_ログイン・ログアウト.md)）。トークンそのものは保存せず、ハッシュだけを保存する（DB が漏れてもトークンとして使えないようにするため）。
+
+| カラム | 型 | NULL | 制約・既定値 | 説明 |
+|---|---|:-:|---|---|
+| id | bigint | × | PK（IDENTITY） | |
+| user_id | bigint | × | FK → users.id（ON DELETE CASCADE） | トークンの持ち主 |
+| token_hash | char(64) | × | UNIQUE | トークンの SHA-256（16進数64文字） |
+| family_id | uuid | × | | ログイン1回ごとの系列。交換しても引き継ぐ。使用済みのトークンが再び使われたら、この系列をまとめて無効にする |
+| expires_at | timestamptz | × | | 有効期限（発行から7日） |
+| revoked_at | timestamptz | ○ | | 交換・ログアウト・無効化された日時。NULL なら使える |
+| created_at | timestamptz | × | DEFAULT now() | |
+
+- 期限切れの行は、毎日4時（UTC）にアプリが削除する
 
 ### posts（投稿）
 
@@ -157,7 +183,7 @@ erDiagram
 | post_images.post_id → posts.id | CASCADE | 投稿を消すと画像の行も消える |
 | comments.post_id → posts.id | CASCADE | 投稿を消すとコメントも消える |
 | likes.post_id → posts.id | CASCADE | 投稿を消すといいねも消える |
-| posts.user_id / comments.user_id / likes.user_id / follows.* → users.id | CASCADE | ユーザー削除は今回作らないが、将来に備えて付けておく |
+| refresh_tokens.user_id / posts.user_id / comments.user_id / likes.user_id / follows.* → users.id | CASCADE | ユーザー削除は今回作らないが、将来に備えて付けておく |
 
 - DB の CASCADE では S3 上の画像ファイルは消えない。アプリで削除前に画像の S3 キーを取得しておき、DB の削除が成功してから S3 の画像を消す（[F-11](./機能定義書/F-11_投稿削除.md)）
 - 投稿の編集（F-10）で外した画像も同じく、DB の更新が成功してから S3 から消す
@@ -170,6 +196,9 @@ erDiagram
 | users | UNIQUE(email) | ログイン時の検索、登録時の重複防止 |
 | users | GIN(username gin_trgm_ops) | ユーザー検索の部分一致（F-09） |
 | users | GIN(name gin_trgm_ops) | ユーザー検索の部分一致（F-09） |
+| refresh_tokens | UNIQUE(token_hash) | トークンの検索（refresh・logout） |
+| refresh_tokens | (family_id) | 系列をまとめて無効にする |
+| refresh_tokens | (expires_at) | 期限切れの削除 |
 | posts | (user_id, id DESC) | タイムライン・ユーザーページの投稿取得 |
 | post_images | UNIQUE(post_id, position) | 投稿の画像を順番に取得 |
 | comments | (post_id, id) | 投稿詳細のコメント一覧、コメント数 |
