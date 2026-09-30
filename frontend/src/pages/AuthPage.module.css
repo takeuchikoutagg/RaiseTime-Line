@@ -1,0 +1,111 @@
+/* ログイン画面・新規登録画面の共通スタイル（prototype/style.css の認証画面を移したもの） */
+
+.auth {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+
+.logo {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.title {
+  margin: 0 0 24px;
+  font-size: 1.6rem;
+  text-align: center;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.hint {
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.invalid {
+  border-color: var(--color-danger);
+}
+
+.prefix {
+  display: flex;
+  align-items: center;
+}
+
+.prefixMark {
+  padding: 10px 0 10px 12px;
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--color-text-sub);
+}
+
+.prefix .input {
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  padding-left: 2px;
+}
+
+.fieldError,
+.formError {
+  min-height: 1.2em;
+  margin: 4px 0 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.formError {
+  margin-bottom: 8px;
+}
+
+.submit {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switch {
+  margin-top: 24px;
+  color: var(--color-text-sub);
+  text-align: center;
+}

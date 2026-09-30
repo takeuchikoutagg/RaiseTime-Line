@@ -11,7 +11,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 - データ保存先: 投稿・ユーザーなどのデータは PostgreSQL、投稿画像は AWS S3（DB には S3 のキーだけを保存）
 - インフラ: AWS（CloudFront / ALB / EC2 / RDS / S3）で構築する案を用意済み。AWS 上に構築するかは未定
 - 学習の目的: 認証・認可、CRUD、1対多・多対多（自己参照を含む）のリレーション、画像アップロード、AWS でのインフラ構築を一通り身につける
-- 実装状況: **要件定義・設計と、HTML / CSS / JavaScript のプロトタイプ（`prototype/`）まで完了**。本番の実装を「バックエンド → フロントエンド → 品質チェック → インフラ構築」の順で進めている。現在はバックエンドの認証（新規登録・ログイン・ログアウト）まで（進み具合は [要件定義.md 15章](./docs/要件定義.md#15-実装状況まとめ) を参照）
+- 実装状況: **要件定義・設計と、HTML / CSS / JavaScript のプロトタイプ（`prototype/`）まで完了**。本番の実装を「バックエンド → フロントエンド → 品質チェック → インフラ構築」の順で進めている。現在は認証（新規登録・ログイン・ログアウト）のバックエンドと画面まで。ログイン後は仮のホーム画面（進み具合は [要件定義.md 15章](./docs/要件定義.md#15-実装状況まとめ) を参照）
 
 ## 主な機能
 
@@ -43,7 +43,8 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 
 | 分類 | 技術 | バージョン |
 |---|---|---|
-| フロントエンド | React + Vite（JavaScript） | 未導入（フロントエンド工程で追加） |
+| フロントエンド | React + Vite（JavaScript）、React Router、CSS Modules | React 19.2 / Vite 8.3 / React Router 8.4 |
+| フロントのテスト・静的解析 | Vitest ＋ Testing Library、oxlint | Vitest 5.0 |
 | バックエンド | Spring Boot（Java） | Spring Boot 4.1.0 / Java 25（Gradle 9.5.1） |
 | DB アクセス | MyBatis（SQL は Mapper XML） | mybatis-spring-boot-starter 4.1.0 |
 | マイグレーション | Flyway | Spring Boot 管理のバージョン |
@@ -70,6 +71,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 
 ```
 backend/    … Spring Boot（Gradle）製バックエンド
+frontend/   … React + Vite 製フロントエンド
 docs/       … 要件定義書と設計ドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図・インフラ構成図など）
 prototype/  … HTML / CSS / JavaScript だけで作ったプロトタイプ（データは localStorage。本番の React + Spring Boot 版を作る前の画面・動きの確認用）
 .claude/    … Claude Code 向けの設定・プロジェクトスキル
@@ -78,15 +80,18 @@ CLAUDE.md   … Claude Code 向けの作業ガイドライン・開発ルール
 docker-compose.yml … 開発用の PostgreSQL
 ```
 
-フロントエンド工程で `frontend/`（React）を追加する予定。
-
 ## セットアップ・起動方法
 
-前提: Docker、Java（`backend/` の Gradle Toolchain 設定により、ローカルに Java 25 が無くても自動で取得される）
+前提: Docker、Node.js、Java（`backend/` の Gradle Toolchain 設定により、ローカルに Java 25 が無くても自動で取得される）
 
 1. PostgreSQL を起動: `docker compose up -d`（ポート 5434）
 2. バックエンドを起動: `backend/start.sh`（ポート 8081。使用中なら既存プロセスを停止してから `./gradlew bootRun` を起動する）
-3. 動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`、`curl http://localhost:8081/api/auth/me` → 401（ログインしていないため）
+3. フロントエンドを起動: 初回だけ `cd frontend && npm install`。その後 `frontend/start.sh`（ポート 5174。使用中なら既存プロセスを停止してから `npm run dev` を起動する）
+4. ブラウザで `http://localhost:5174` を開く → ログイン画面。新規登録するとそのままログインし、仮のホーム画面（Hello World）が出る
+
+- フロントの `/api` へのリクエストは、Vite の開発サーバーがバックエンド（8081）へ転送する（`frontend/vite.config.js`）。画面と API が同じオリジンになるので、CORS の設定は不要で、ログインの Cookie もそのまま使える
+- バックエンドだけの動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`、`curl http://localhost:8081/api/auth/me` → 401（ログインしていないため）
+- フロントのテスト: `cd frontend && npm test`。静的解析: `npm run lint`。本番用のビルド: `npm run build`
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
 - テスト: `cd backend && ./gradlew test`（PostgreSQL が起動している必要がある）。静的解析: `./gradlew checkstyleMain`
