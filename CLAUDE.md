@@ -11,6 +11,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 ## 技術構成
 
 - バックエンド：Spring Boot 4.1.0 / Java 25 / Gradle。DB アクセスは **MyBatis**（SQL は `src/main/resources/mapper/*.xml`。JPA は使わない）
+- フロントエンド：React + Vite（JavaScript）、React Router、CSS Modules。テストは Vitest ＋ Testing Library、静的解析は oxlint
 - DB：PostgreSQL 17（Docker Compose）。テーブルは **Flyway**（`src/main/resources/db/migration/`）だけで作る
 - 認証：JWT（Spring Security の OAuth2 Resource Server）。アクセストークン（JWT、15分）とリフレッシュトークン（7日、DB にハッシュを保存して使うたびに交換）を、どちらも HttpOnly Cookie で渡す。CSRF 対策は Cookie ＋ ヘッダー方式
 
@@ -20,11 +21,12 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 
 - PostgreSQL: `docker compose up -d`（ポート 5434）
 - バックエンド: `cd backend && ./start.sh`（ポート 8081）
+- フロントエンド: `cd frontend && ./start.sh`（ポート 5174。`/api` はバックエンドへプロキシ）
 
 **サーバー起動時のポートに関するルール（必須）:**
 
-- サーバーは必ず `start.sh` 経由で起動する。`./gradlew bootRun` を直接実行しない。
-- ポートが競合していても、別のポートに逃がして起動してはならない。対象ポート（バックエンド 8081）を使用しているプロセスを停止してから、同じポートで起動する。
+- サーバーは必ず `start.sh` 経由で起動する。`./gradlew bootRun` や `npm run dev` を直接実行しない。
+- ポートが競合していても、別のポートに逃がして起動してはならない。対象ポート（バックエンド 8081・フロントエンド 5174）を使用しているプロセスを停止してから、同じポートで起動する。フロントエンド（Vite）は `vite.config.js` で `server.strictPort: true` を設定しており、ポートが空いていないと別ポートに逃げずにエラーになる。
 - 隣の Taskmanagement プロジェクトが 8080 / 5173 / 5433 を使っているため、このプロジェクトは 8081 / 5174 / 5434 を使う。**Taskmanagement のポートのプロセスは止めない。**
 - 具体的な起動手順は `.claude/skills/start-dev-servers/SKILL.md` にスキルとして定義している。サーバー起動・動作確認が必要な場合はこのスキルに従う。
 - バックエンドのテスト（`./gradlew test`）は PostgreSQL が起動している必要がある。

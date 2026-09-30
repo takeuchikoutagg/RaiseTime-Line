@@ -1,0 +1,48 @@
+/* 色や文字の共通設定（prototype/style.css と同じ） */
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f7f9f9;
+  --color-border: #e6ecf0;
+  --color-text: #0f1419;
+  --color-text-sub: #536471;
+  --color-primary: #1d9bf0;
+  --color-primary-hover: #1a8cd8;
+  --color-danger: #f4212e;
+  --radius: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #000000;
+    --color-surface: #16181c;
+    --color-border: #2f3336;
+    --color-text: #e7e9ea;
+    --color-text-sub: #71767b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input {
+  font: inherit;
+}
