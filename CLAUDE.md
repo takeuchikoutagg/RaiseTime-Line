@@ -14,6 +14,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 - フロントエンド：React + Vite（JavaScript）、React Router、CSS Modules。テストは Vitest ＋ Testing Library、静的解析は oxlint
 - DB：PostgreSQL 17（Docker Compose）。テーブルは **Flyway**（`src/main/resources/db/migration/`）だけで作る
 - 認証：JWT（Spring Security の OAuth2 Resource Server）。アクセストークン（JWT、15分）とリフレッシュトークン（7日、DB にハッシュを保存して使うたびに交換）を、どちらも HttpOnly Cookie で渡す。CSRF 対策は Cookie ＋ ヘッダー方式
+  - **`oauth2ResourceServer()` は使わない。** 使うと「トークン付きのリクエストは CSRF のチェックを省く」設定が自動で入り、Cookie でトークンを渡すこのアプリでは CSRF 攻撃ができてしまう。JWT の検証フィルターは `SecurityConfig` で自分で組み立てている
 
 ## 起動コマンド
 

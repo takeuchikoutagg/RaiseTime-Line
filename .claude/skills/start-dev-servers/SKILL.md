@@ -71,9 +71,25 @@ proxy (`/api` → `http://localhost:8081`, configured in
 `frontend/vite.config.js`), which is what avoids CORS in development
 and lets the auth cookies work as-is.
 
-To see the screens, open `http://localhost:5174` in a real browser
-(`open http://localhost:5174` on macOS). This sandbox cannot take
-screenshots, so ask the user to confirm visually.
+To see and operate the screens, use the **Chrome DevTools MCP**
+(`mcp__chrome-devtools__*` tools, configured in the user's Claude Code
+settings). Typical check:
+
+1. `new_page` with `url: http://localhost:5174/` and an
+   `isolatedContext` name (a clean browser profile, separate from the
+   user's normal Chrome and from other checks)
+2. `take_snapshot` to get element uids → `fill_form` / `click`
+3. `take_screenshot` to look at the layout; `emulate` with
+   `viewport: 375x812x2,mobile,touch` for phone width (reset with an
+   empty viewport afterwards)
+4. `list_console_messages` (errors/warnings) and
+   `list_network_requests` / `get_network_request` (status codes,
+   `X-XSRF-TOKEN` request header, `Set-Cookie` attributes)
+5. `close_page` when done, and delete any users created for the check
+
+If the Chrome DevTools tools are not available in the session (they are
+loaded only when Claude Code starts), fall back to asking the user to
+open `http://localhost:5174` in their browser.
 
 ## Stop
 
@@ -90,5 +106,10 @@ docker compose stop   # only this project's PostgreSQL (raisetime-postgres)
 - If Docker Desktop was just launched, `docker compose up -d` can fail
   until the daemon socket exists — poll `docker info`, don't just
   sleep once.
+- If `curl http://localhost:5174/api/auth/me` returns **200 with HTML**
+  instead of 401, Vite's `/api` proxy is not in effect (seen after the
+  config file changed while the dev server was running, e.g. when
+  switching branches — Vite auto-restarted in a broken state). Restart
+  it with `frontend/start.sh`.
 - Backend tests (`./gradlew test`) need PostgreSQL running, because
   `@SpringBootTest` and the Mapper tests connect to the real database.
