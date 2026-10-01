@@ -52,8 +52,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -176,6 +178,20 @@ class AuthControllerTest {
                         .cookie(accessTokenCookie(token), new Cookie("XSRF-TOKEN", "current-csrf-token")))
                 .andExpect(status().isOk())
                 .andExpect(cookie().doesNotExist("XSRF-TOKEN"));
+    }
+
+    // ログイン中（access_token Cookie あり）でも、CSRF トークンのない変更系のリクエストは 403 にする。
+    // トークンは Cookie でブラウザが自動で送るので、ここを省くと別サイトから勝手に操作されてしまう（issue #15）
+    @Test
+    void stateChangingRequest_whileLoggedIn_withoutCsrf_returns403() throws Exception {
+        Cookie accessToken = accessTokenCookie(accessTokenService.issue(new AuthUser(1L, "taro_dev", "山田太郎", null)));
+
+        for (var request : List.of(post("/api/posts"), put("/api/users/hanako/follow"),
+                delete("/api/posts/1"))) {
+            mockMvc.perform(request.cookie(accessToken))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        }
     }
 
     @Test
