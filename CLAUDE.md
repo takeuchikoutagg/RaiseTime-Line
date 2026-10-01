@@ -12,6 +12,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 
 - バックエンド：Spring Boot 4.1.0 / Java 25 / Gradle。DB アクセスは **MyBatis**（SQL は `src/main/resources/mapper/*.xml`。JPA は使わない）
 - フロントエンド：React + Vite（JavaScript）、React Router、CSS Modules。テストは Vitest ＋ Testing Library、静的解析は oxlint
+- 画像：AWS S3（AWS SDK v2）。開発中は S3 互換の Adobe S3Mock（Docker Compose、認証なし）。画像ファイルは S3、DB には S3 のキーだけを保存する
 - DB：PostgreSQL 17（Docker Compose）。テーブルは **Flyway**（`src/main/resources/db/migration/`）だけで作る
 - 認証：JWT（Spring Security の OAuth2 Resource Server）。アクセストークン（JWT、15分）とリフレッシュトークン（7日、DB にハッシュを保存して使うたびに交換）を、どちらも HttpOnly Cookie で渡す。CSRF 対策は Cookie ＋ ヘッダー方式
   - **`oauth2ResourceServer()` は使わない。** 使うと「トークン付きのリクエストは CSRF のチェックを省く」設定が自動で入り、Cookie でトークンを渡すこのアプリでは CSRF 攻撃ができてしまう（issue #15）。JWT の検証フィルターは `SecurityConfig` で自分で組み立てている
@@ -20,7 +21,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 
 起動方法の詳細は [README.md](./README.md#セットアップ起動方法) を参照。
 
-- PostgreSQL: `docker compose up -d`（ポート 5434）
+- PostgreSQL・S3Mock（開発用の S3）: `docker compose up -d`（ポート 5434 / 9090）
 - バックエンド: `cd backend && ./start.sh`（ポート 8081）
 - フロントエンド: `cd frontend && ./start.sh`（ポート 5174。`/api` はバックエンドへプロキシ）
 
