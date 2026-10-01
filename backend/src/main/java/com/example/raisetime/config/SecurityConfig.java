@@ -19,6 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
@@ -89,8 +90,11 @@ public class SecurityConfig {
             CookieBearerTokenResolver bearerTokenResolver, JsonAuthenticationEntryPoint authenticationEntryPoint) {
         JwtAuthenticationProvider provider = new JwtAuthenticationProvider(jwtDecoder);
         provider.setJwtAuthenticationConverter(jwtAuthenticationConverter);
-        BearerTokenAuthenticationFilter filter = new BearerTokenAuthenticationFilter(new ProviderManager(provider));
-        filter.setBearerTokenResolver(bearerTokenResolver);
+        // どこからトークンを読むか（access_token Cookie）は、AuthenticationConverter に設定する
+        BearerTokenAuthenticationConverter tokenConverter = new BearerTokenAuthenticationConverter();
+        tokenConverter.setBearerTokenResolver(bearerTokenResolver);
+        BearerTokenAuthenticationFilter filter =
+                new BearerTokenAuthenticationFilter(new ProviderManager(provider), tokenConverter);
         // JWT が期限切れ・改ざんされていたら 401 を JSON で返す
         filter.setAuthenticationFailureHandler(new AuthenticationEntryPointFailureHandler(authenticationEntryPoint));
         return filter;
