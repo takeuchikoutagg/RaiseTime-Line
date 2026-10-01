@@ -41,7 +41,10 @@ function readCookie(name) {
 
 function send(path, { method = 'GET', body } = {}) {
   const headers = {}
-  if (body !== undefined) {
+  // FormData（画像つきの投稿）は、ブラウザが multipart/form-data の Content-Type（区切り文字つき）を自動で付けるので、
+  // 自分では Content-Type を付けず、JSON にも変換しない
+  const isFormData = body instanceof FormData
+  if (body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
   }
   if (method !== 'GET') {
@@ -53,7 +56,7 @@ function send(path, { method = 'GET', body } = {}) {
   return fetch(path, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined || isFormData ? body : JSON.stringify(body),
     credentials: 'same-origin',
   })
 }
