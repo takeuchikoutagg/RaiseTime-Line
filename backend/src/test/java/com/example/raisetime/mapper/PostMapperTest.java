@@ -121,6 +121,23 @@ class PostMapperTest {
     }
 
     @Test
+    void existsTimelineNewerThan_onlyCountsOwnAndFolloweesPostsNewerThanAfter() {
+        Post own = insertPost(taro, "自分");
+        follow(taro, hanako);
+
+        assertThat(postMapper.existsTimelineNewerThan(taro, own.getId())).isFalse();
+        // フォローしていない人の新しい投稿は数えない
+        insertPost(stranger, "知らない人");
+        assertThat(postMapper.existsTimelineNewerThan(taro, own.getId())).isFalse();
+        // フォロー中の人の新しい投稿は数える
+        insertPost(hanako, "花子");
+        assertThat(postMapper.existsTimelineNewerThan(taro, own.getId())).isTrue();
+        // after=0 なら、タイムラインに投稿が1件でもあれば true
+        assertThat(postMapper.existsTimelineNewerThan(taro, 0L)).isTrue();
+        assertThat(postMapper.existsTimelineNewerThan(stranger, Long.MAX_VALUE)).isFalse();
+    }
+
+    @Test
     void images_findByPostIds_orderedByPostAndPosition() {
         Post a = insertPost(taro, "a");
         Post b = insertPost(taro, "b");

@@ -20,6 +20,9 @@ public interface PostMapper {
     List<PostWithAuthor> findTimeline(@Param("viewerId") Long viewerId, @Param("before") Long before,
                                       @Param("limit") int limit);
 
+    // タイムラインに、after より新しい（id が大きい）投稿があるか。新しい投稿のお知らせ（F-03）に使う
+    boolean existsTimelineNewerThan(@Param("viewerId") Long viewerId, @Param("after") long after);
+
     // 投稿を消す。画像・コメント・いいねの行は ON DELETE CASCADE で一緒に消える
     int delete(Long id);
 }

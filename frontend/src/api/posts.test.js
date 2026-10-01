@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPost, deletePost, fetchTimeline } from './posts.js'
+import { checkNewPosts, createPost, deletePost, fetchTimeline } from './posts.js'
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -27,6 +27,13 @@ describe('posts API', () => {
     await fetchTimeline(40)
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(['/api/timeline', '/api/timeline?before=40'])
+  })
+
+  it('checkNewPosts：after を付けて呼ぶ', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { hasNew: true }))
+
+    await expect(checkNewPosts(5)).resolves.toEqual({ hasNew: true })
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/timeline/has-new?after=5')
   })
 
   it('createPost：multipart/form-data（FormData）で本文と画像を送り、Content-Type は自分で付けない', async () => {

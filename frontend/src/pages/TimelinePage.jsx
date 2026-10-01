@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
-import { fetchTimeline } from '../api/posts.js'
+import { checkNewPosts, fetchTimeline } from '../api/posts.js'
 import { useAuth } from '../auth/useAuth.js'
 import Avatar from '../components/Avatar/Avatar.jsx'
 import DeleteConfirmModal from '../components/DeleteConfirmModal/DeleteConfirmModal.jsx'
@@ -8,7 +8,12 @@ import Loading from '../components/Loading/Loading.jsx'
 import PostCard from '../components/PostCard/PostCard.jsx'
 import styles from './TimelinePage.module.css'
 
-// S-03 タイムライン（docs/機能定義書/F-03_タイムライン.md）。自分＋フォロー中の人の投稿を新しい順に20件ずつ
+// 新しい投稿があるかを確かめる間隔
+export const NEW_POSTS_CHECK_INTERVAL_MS = 30_000
+
+// S-03 タイムライン（docs/機能定義書/F-03_タイムライン.md）。自分＋フォロー中の人の投稿を新しい順に表示する。
+// - 一覧の下までスクロールしたら、自動で次の20件を読み込む（無限スクロール）
+// - 30秒ごとに新しい投稿があるか確かめ、あれば「新しい投稿があります」を画面上部に出す（件数は出さない）
 export default function TimelinePage() {
   const { user } = useAuth()
   const { openCompose, createdPost } = useOutletContext()
@@ -16,10 +21,16 @@ export default function TimelinePage() {
   const [nextCursor, setNextCursor] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [loadingMore, setLoadingMore] = useState(false)
-  const [moreError, setMoreError] = useState('')
+  const [moreError, setMoreError] = useState(false)
+  const [hasNew, setHasNew] = useState(false)
+  const [showingNew, setShowingNew] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [addedPostId, setAddedPostId] = useState(null)
+  const sentinelRef = useRef(null)
+
+  // 表示中の一番新しい投稿の id。新しい投稿があるかは、これより新しいものを探す
+  const newestId = posts[0]?.id ?? 0
 
   // 最初の20件を読み込む。「再読み込み」で reloadKey を変えると、もう一度読み込む
   useEffect(() => {
@@ -51,17 +62,86 @@ export default function TimelinePage() {
     setPosts((current) => (current.some((p) => p.id === createdPost.id) ? current : [createdPost, ...current]))
   }
 
-  async function loadMore() {
+  // ---------- 無限スクロール ----------
+
+  const loadMore = useCallback(async () => {
     setLoadingMore(true)
-    setMoreError('')
+    setMoreError(false)
     try {
       const page = await fetchTimeline(nextCursor)
-      setPosts((current) => [...current, ...page.items])
+      setPosts((current) => [...current, ...page.items.filter((p) => !current.some((c) => c.id === p.id))])
       setNextCursor(page.nextCursor)
     } catch {
-      setMoreError('読み込みに失敗しました')
+      // 失敗したら自動では読み込み直さず、「再読み込み」ボタンを出す（失敗が続いて何度もリクエストしないように）
+      setMoreError(true)
     } finally {
       setLoadingMore(false)
+    }
+  }, [nextCursor])
+
+  // 一覧の一番下の目印（sentinel）が画面に近づいたら、次の20件を読み込む
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (status !== 'ready' || nextCursor == null || loadingMore || moreError || !sentinel) return undefined
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadMore()
+      },
+      // 一番下に着く少し手前（200px）で読み込み始める
+      { rootMargin: '200px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [status, nextCursor, loadingMore, moreError, loadMore])
+
+  // ---------- 新しい投稿のお知らせ ----------
+
+  // 30秒ごとに確かめる。タブが裏にある間は確かめず、表に戻ったらすぐ確かめる。
+  // お知らせを出したら、押されるまでは確かめるのをやめる
+  useEffect(() => {
+    if (status !== 'ready' || hasNew) return undefined
+    let cancelled = false
+    async function check() {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const result = await checkNewPosts(newestId)
+        if (!cancelled && result.hasNew) setHasNew(true)
+      } catch {
+        // 確かめるのに失敗しても、画面には何も出さない（次の30秒後にまた確かめる）
+      }
+    }
+    const timer = setInterval(check, NEW_POSTS_CHECK_INTERVAL_MS)
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') check()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [status, hasNew, newestId])
+
+  // 新しい投稿を先頭に足して、一番上に戻る。読み込み済みの古い投稿はそのまま残す
+  async function showNewPosts() {
+    setShowingNew(true)
+    try {
+      const page = await fetchTimeline()
+      const connected = posts.length === 0 || page.items.some((p) => p.id <= newestId)
+      if (connected) {
+        const newer = page.items.filter((p) => p.id > newestId)
+        setPosts((current) => [...newer.filter((p) => !current.some((c) => c.id === p.id)), ...current])
+      } else {
+        // 新しい投稿が20件より多く、今の一覧とつながらないときは、最新の20件から表示し直す
+        setPosts(page.items)
+        setNextCursor(page.nextCursor)
+      }
+      setHasNew(false)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch {
+      // 失敗したらボタンを残し、もう一度押せるようにする
+    } finally {
+      setShowingNew(false)
     }
   }
 
@@ -72,6 +152,15 @@ export default function TimelinePage() {
 
   return (
     <>
+      {hasNew && (
+        // 画面上部に固定して、下にスクロールしていても見えるようにする
+        <div className={styles.newPostsBar}>
+          <button type="button" className={styles.newPostsButton} onClick={showNewPosts} disabled={showingNew}>
+            {showingNew ? '読み込み中…' : '↑ 新しい投稿があります'}
+          </button>
+        </div>
+      )}
+
       <h1 className={styles.title}>ホーム</h1>
       <div className={styles.composeBar}>
         <Avatar username={user.username} name={user.name} />
@@ -98,14 +187,18 @@ export default function TimelinePage() {
           {posts.map((post) => (
             <PostCard key={post.id} post={post} onDeleteRequest={setDeleting} />
           ))}
-          {nextCursor != null && (
+          {/* この目印が画面に近づいたら、次の20件を読み込む */}
+          <div ref={sentinelRef} data-testid="timeline-sentinel" />
+          {loadingMore && <Loading />}
+          {moreError && (
             <div className={styles.more}>
-              <button type="button" className={styles.moreButton} onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? '読み込み中…' : 'もっと見る'}
+              <p className={styles.moreError}>読み込みに失敗しました</p>
+              <button type="button" className={styles.retry} onClick={loadMore}>
+                再読み込み
               </button>
-              {moreError && <p className={styles.moreError}>{moreError}</p>}
             </div>
           )}
+          {nextCursor == null && posts.length > 0 && <p className={styles.end}>これ以上の投稿はありません</p>}
         </>
       )}
 

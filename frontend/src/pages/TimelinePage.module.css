@@ -31,8 +31,7 @@
   text-align: center;
 }
 
-.retry,
-.moreButton {
+.retry {
   padding: 8px 16px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
@@ -42,8 +41,7 @@
   cursor: pointer;
 }
 
-.retry:hover,
-.moreButton:hover:not(:disabled) {
+.retry:hover {
   background: var(--color-surface);
 }
 
@@ -52,17 +50,49 @@
   text-align: center;
 }
 
-.moreButton {
-  width: 100%;
-}
-
-.moreButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .moreError {
-  margin: 8px 0 0;
+  margin: 0 0 8px;
   color: var(--color-danger);
   font-size: 0.85rem;
+}
+
+.end {
+  margin: 0;
+  padding: 24px 16px 40px;
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* 新しい投稿のお知らせ。ヘッダー（高さ56px）のすぐ下に固定し、スクロールしても見えるようにする */
+.newPostsBar {
+  position: fixed;
+  top: 68px;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.newPostsButton {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.newPostsButton:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.newPostsButton:disabled {
+  opacity: 0.8;
+  cursor: wait;
 }
