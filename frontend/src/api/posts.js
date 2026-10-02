@@ -8,6 +8,11 @@ export function fetchTimeline(before) {
   return request(`/api/timeline${query}`)
 }
 
+// { hasNew }。表示中の一番新しい投稿の id（after）より新しい投稿があるか
+export function checkNewPosts(after) {
+  return request(`/api/timeline/has-new?after=${encodeURIComponent(after)}`)
+}
+
 // 本文と画像（File の配列、0〜4枚）を multipart/form-data で送る。作成した PostResponse を返す
 export function createPost({ body, images = [] }) {
   const form = new FormData()

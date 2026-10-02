@@ -153,6 +153,12 @@ public class PostService {
         return new TimelineResponse(items, hasMore ? page.getLast().getId() : null);
     }
 
+    // 画面に表示している一番新しい投稿（after）より新しい投稿があるか。after を省くと、投稿が1件でもあれば true
+    @Transactional(readOnly = true)
+    public boolean hasNewPosts(Long viewerId, Long after) {
+        return postMapper.existsTimelineNewerThan(viewerId, after == null ? 0L : after);
+    }
+
     // ---------- F-11 投稿削除 ----------
 
     @Transactional

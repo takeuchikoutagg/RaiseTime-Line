@@ -1,5 +1,6 @@
 package com.example.raisetime.controller;
 
+import com.example.raisetime.dto.HasNewPostsResponse;
 import com.example.raisetime.dto.PostResponse;
 import com.example.raisetime.dto.TimelineResponse;
 import com.example.raisetime.security.AuthUser;
@@ -42,6 +43,13 @@ public class PostController {
     public TimelineResponse timeline(@RequestParam(required = false) Long before,
                                      @AuthenticationPrincipal AuthUser me) {
         return postService.timeline(me.getId(), before);
+    }
+
+    // 画面が30秒ごとに呼び、表示中の一番新しい投稿（after）より新しい投稿があるかを確かめる
+    @GetMapping("/api/timeline/has-new")
+    public HasNewPostsResponse hasNew(@RequestParam(required = false) Long after,
+                                      @AuthenticationPrincipal AuthUser me) {
+        return new HasNewPostsResponse(postService.hasNewPosts(me.getId(), after));
     }
 
     @DeleteMapping("/api/posts/{postId}")

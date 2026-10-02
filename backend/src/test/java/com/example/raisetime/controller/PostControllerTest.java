@@ -196,6 +196,24 @@ class PostControllerTest {
     }
 
     @Test
+    void hasNew_returnsFlag_andPassesAfter() throws Exception {
+        when(postService.hasNewPosts(1L, 50L)).thenReturn(true);
+
+        mockMvc.perform(get("/api/timeline/has-new").param("after", "50").cookie(loggedIn))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasNew").value(true))
+                // 件数は返さない
+                .andExpect(jsonPath("$.count").doesNotExist());
+    }
+
+    @Test
+    void hasNew_withoutLogin_returns401_andNonNumericAfter_returns400() throws Exception {
+        mockMvc.perform(get("/api/timeline/has-new").param("after", "50")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/timeline/has-new").param("after", "abc").cookie(loggedIn))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void timeline_nonNumericBefore_returns400() throws Exception {
         mockMvc.perform(get("/api/timeline").param("before", "abc").cookie(loggedIn))
                 .andExpect(status().isBadRequest());

@@ -334,6 +334,15 @@ class PostServiceTest {
     }
 
     @Test
+    void hasNewPosts_passesAfter_orZeroWhenOmitted() {
+        when(postMapper.existsTimelineNewerThan(1L, 50L)).thenReturn(true);
+
+        assertThat(postService.hasNewPosts(1L, 50L)).isTrue();
+        assertThat(postService.hasNewPosts(1L, null)).isFalse();
+        verify(postMapper).existsTimelineNewerThan(1L, 0L);
+    }
+
+    @Test
     void timeline_empty_doesNotQueryImages() {
         TimelineResponse response = postService.timeline(1L, null);
 

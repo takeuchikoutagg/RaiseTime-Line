@@ -33,6 +33,17 @@
         LIMIT #{limit}
     </select>
 
+    <!-- 対象はタイムラインと同じ（自分＋フォロー中の人）。件数は数えず、1件でもあれば true（画面に件数は出さない） -->
+    <select id="existsTimelineNewerThan" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM posts p
+            WHERE (p.user_id = #{viewerId}
+                   OR p.user_id IN (SELECT f.followee_id FROM follows f WHERE f.follower_id = #{viewerId}))
+              AND p.id &gt; #{after}
+        )
+    </select>
+
     <delete id="delete">
         DELETE FROM posts WHERE id = #{id}
     </delete>

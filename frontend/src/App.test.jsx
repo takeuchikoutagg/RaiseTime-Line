@@ -3,10 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchTimeline } from './api/posts.js'
 import App from './App.jsx'
+import { installIntersectionObserverMock } from './test/intersectionObserver.js'
 import { renderWithAuth } from './test/renderWithAuth.jsx'
 
 vi.mock('./api/posts.js', () => ({
   fetchTimeline: vi.fn(),
+  checkNewPosts: vi.fn(),
   createPost: vi.fn(),
   deletePost: vi.fn(),
 }))
@@ -15,6 +17,7 @@ const taro = { username: 'taro_dev', name: '山田太郎' }
 
 describe('App（ログイン状態による画面の出し分け）', () => {
   beforeEach(() => {
+    installIntersectionObserverMock()
     vi.mocked(fetchTimeline).mockResolvedValue({ items: [], nextCursor: null })
   })
 
