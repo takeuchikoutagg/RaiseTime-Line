@@ -1,3 +1,5 @@
+import { countChars } from '../utils/text.js'
+
 // 新規登録の入力チェック。バックエンド（SignupRequest）と同じルール・同じメッセージにする
 // （docs/機能定義書/F-01_新規登録.md）
 
@@ -6,10 +8,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // BCrypt が扱えるのは72バイトまで
 const PASSWORD_MAX_BYTES = 72
 
-// 絵文字も1文字と数える（String.length だと絵文字が2文字になる）
-export function countChars(value) {
-  return [...value].length
-}
+// countChars は投稿のチェックでも使うので utils/text.js に置き、ここからも使えるようにしている
+export { countChars }
 
 function utf8Bytes(value) {
   return new TextEncoder().encode(value).length

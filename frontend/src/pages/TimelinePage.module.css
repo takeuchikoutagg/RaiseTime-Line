@@ -1,0 +1,68 @@
+.title {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.composeBar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.composeButton {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+  text-align: left;
+  cursor: pointer;
+}
+
+.empty {
+  margin: 0;
+  padding: 40px 16px;
+  color: var(--color-text-sub);
+  text-align: center;
+}
+
+.retry,
+.moreButton {
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.retry:hover,
+.moreButton:hover:not(:disabled) {
+  background: var(--color-surface);
+}
+
+.more {
+  padding: 16px;
+  text-align: center;
+}
+
+.moreButton {
+  width: 100%;
+}
+
+.moreButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.moreError {
+  margin: 8px 0 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}

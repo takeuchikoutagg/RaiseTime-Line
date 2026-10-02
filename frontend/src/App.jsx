@@ -1,8 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { PublicOnly, RequireAuth } from './auth/RouteGuards.jsx'
-import HomePage from './pages/HomePage.jsx'
+import AppLayout from './components/AppLayout/AppLayout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
+import TimelinePage from './pages/TimelinePage.jsx'
 
 export default function App() {
   return (
@@ -12,7 +13,10 @@ export default function App() {
         <Route path="/signup" element={<SignupPage />} />
       </Route>
       <Route element={<RequireAuth />}>
-        <Route path="/" element={<HomePage />} />
+        {/* ログイン後の画面は、共通ヘッダーつきのレイアウトの中に表示する */}
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<TimelinePage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
