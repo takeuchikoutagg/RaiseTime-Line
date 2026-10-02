@@ -18,7 +18,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
 import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
@@ -59,14 +64,12 @@ public class SecurityConfig {
                         // JWT ではリクエストのたびに認証するため、そのままだと毎回トークンが消えて次の POST が 403 になる。
                         // ログイン時のトークンの入れ替えは AuthTokenIssuer で行うので、ここでは消さない
                         .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
-                // access_token Cookie の JWT を検証し、ログイン中のユーザー（AuthUser）にする
-                .oauth2ResourceServer(resourceServer -> resourceServer
-                        .bearerTokenResolver(bearerTokenResolver)
-                        .jwt(jwt -> jwt
-                                .decoder(jwtDecoder)
-                                .jwtAuthenticationConverter(jwtAuthenticationConverter))
-                        .authenticationEntryPoint(authenticationEntryPoint)
-                        .accessDeniedHandler(accessDeniedHandler))
+                // access_token Cookie の JWT を検証し、ログイン中のユーザー（AuthUser）にするフィルター。
+                // CSRF のチェック（CsrfFilter）より後に動くので、ログイン中でも CSRF トークンが必須になる
+                .addFilterBefore(
+                        jwtCookieAuthenticationFilter(jwtDecoder, jwtAuthenticationConverter, bearerTokenResolver,
+                                authenticationEntryPoint),
+                        AnonymousAuthenticationFilter.class)
                 // ログイン・ログアウトは AuthController の API で行うため、Spring Security の画面・Basic 認証・ログアウト機能は使わない
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -75,6 +78,26 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler));
         return http.build();
+    }
+
+    // Spring Security の oauth2ResourceServer() を使うと、「トークンが付いたリクエストは CSRF のチェックを省く」設定が
+    // 自動で入る。Authorization ヘッダーのトークンなら別サイトから送れないので安全だが、このアプリはトークンを
+    // Cookie（ブラウザが自動で送る）で渡すため、省くと CSRF 攻撃ができてしまう。
+    // そのため oauth2ResourceServer() は使わず、同じ部品（BearerTokenAuthenticationFilter）を自分で組み立てている。
+    // Bean にするとサーブレットのフィルターとしても登録されてしまうため、Bean にはしない
+    private static BearerTokenAuthenticationFilter jwtCookieAuthenticationFilter(
+            JwtDecoder jwtDecoder, AuthUserJwtAuthenticationConverter jwtAuthenticationConverter,
+            CookieBearerTokenResolver bearerTokenResolver, JsonAuthenticationEntryPoint authenticationEntryPoint) {
+        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(jwtDecoder);
+        provider.setJwtAuthenticationConverter(jwtAuthenticationConverter);
+        // どこからトークンを読むか（access_token Cookie）は、AuthenticationConverter に設定する
+        BearerTokenAuthenticationConverter tokenConverter = new BearerTokenAuthenticationConverter();
+        tokenConverter.setBearerTokenResolver(bearerTokenResolver);
+        BearerTokenAuthenticationFilter filter =
+                new BearerTokenAuthenticationFilter(new ProviderManager(provider), tokenConverter);
+        // JWT が期限切れ・改ざんされていたら 401 を JSON で返す
+        filter.setAuthenticationFailureHandler(new AuthenticationEntryPointFailureHandler(authenticationEntryPoint));
+        return filter;
     }
 
     @Bean
