@@ -62,6 +62,11 @@ export default function TimelinePage() {
     setPosts((current) => (current.some((p) => p.id === createdPost.id) ? current : [createdPost, ...current]))
   }
 
+  // 投稿したら一番上へ戻り、先頭に足した自分の投稿が見えるようにする（下までスクロールしていても）
+  useEffect(() => {
+    if (addedPostId != null) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [addedPostId])
+
   // ---------- 無限スクロール ----------
 
   const loadMore = useCallback(async () => {

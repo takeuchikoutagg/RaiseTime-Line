@@ -198,7 +198,7 @@ describe('TimelinePage', () => {
 
   // ---------- 投稿・削除 ----------
 
-  it('投稿すると、モーダルが閉じて先頭に出る（読み込み直さない）', async () => {
+  it('投稿すると、モーダルが閉じて先頭に出て、一番上へ戻る（読み込み直さない）', async () => {
     vi.mocked(fetchTimeline).mockResolvedValue({ items: [post(1)], nextCursor: null })
     vi.mocked(createPost).mockResolvedValue(post(2, { body: '新しい投稿' }))
     const { user } = renderTimeline()
@@ -210,7 +210,16 @@ describe('TimelinePage', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(bodies()).toEqual(['新しい投稿', '投稿1'])
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
     expect(fetchTimeline).toHaveBeenCalledTimes(1)
+  })
+
+  it('最初に開いたときは、一番上へのスクロールをしない', async () => {
+    vi.mocked(fetchTimeline).mockResolvedValue({ items: [post(1)], nextCursor: null })
+    renderTimeline()
+    await screen.findByText('投稿1')
+
+    expect(window.scrollTo).not.toHaveBeenCalled()
   })
 
   it('自分の投稿を「…」→「削除」→ 確認して削除すると、一覧から消える', async () => {
