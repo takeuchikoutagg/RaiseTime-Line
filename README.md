@@ -50,7 +50,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | マイグレーション | Flyway | Spring Boot 管理のバージョン |
 | データベース | PostgreSQL（Docker） | PostgreSQL 17 |
 | 認証 | Spring Security（OAuth2 Resource Server）で JWT。アクセストークン15分・リフレッシュトークン7日を HttpOnly Cookie で渡す。CSRF は Cookie ＋ ヘッダー方式 | Spring Security 7.1.0 |
-| 画像の保存先 | AWS S3（開発中は S3 互換の MinIO を予定） | - |
+| 画像の保存先 | AWS S3（AWS SDK for Java v2）。開発中は S3 互換の Adobe S3Mock（Docker） | AWS SDK 2.55.9 |
 | インフラ（案） | AWS（CloudFront / ALB / EC2 / RDS / S3） | - |
 | ドキュメント | Markdown（図は Mermaid） | - |
 
@@ -84,7 +84,7 @@ docker-compose.yml … 開発用の PostgreSQL
 
 前提: Docker、Node.js、Java（`backend/` の Gradle Toolchain 設定により、ローカルに Java 25 が無くても自動で取得される）
 
-1. PostgreSQL を起動: `docker compose up -d`（ポート 5434）
+1. PostgreSQL と S3Mock（開発用の S3）を起動: `docker compose up -d`（ポート 5434 / 9090）
 2. バックエンドを起動: `backend/start.sh`（ポート 8081。使用中なら既存プロセスを停止してから `./gradlew bootRun` を起動する）
 3. フロントエンドを起動: 初回だけ `cd frontend && npm install`。その後 `frontend/start.sh`（ポート 5174。使用中なら既存プロセスを停止してから `npm run dev` を起動する）
 4. ブラウザで `http://localhost:5174` を開く → ログイン画面。新規登録するとそのままログインし、仮のホーム画面（Hello World）が出る
@@ -95,7 +95,7 @@ docker-compose.yml … 開発用の PostgreSQL
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
 - テスト: `cd backend && ./gradlew test`（PostgreSQL が起動している必要がある）。静的解析: `./gradlew checkstyleMain`
-- 隣の Taskmanagement（8080 / 5173 / 5433）と同時に動かせるよう、ポートを 8081 / 5174 / 5434 にしている。詳細は [.claude/skills/start-dev-servers/SKILL.md](./.claude/skills/start-dev-servers/SKILL.md) を参照
+- 隣の Taskmanagement（8080 / 5173 / 5433）と同時に動かせるよう、ポートを 8081 / 5174 / 5434 にしている（S3Mock は 9090）。詳細は [.claude/skills/start-dev-servers/SKILL.md](./.claude/skills/start-dev-servers/SKILL.md) を参照
 
 ### プロトタイプ（prototype/）
 

@@ -20,7 +20,7 @@ project (backend 8080 / frontend 5173 / PostgreSQL 5433), which is
 often running at the same time. **Never stop processes on 8080, 5173
 or 5433.**
 
-## 1. PostgreSQL (Docker, port 5434)
+## 1. PostgreSQL (port 5434) and S3Mock (port 9090) via Docker
 
 ```bash
 docker info > /dev/null 2>&1 || open -a Docker   # start Docker Desktop if not running
@@ -28,7 +28,14 @@ docker info > /dev/null 2>&1 || open -a Docker   # start Docker Desktop if not r
 until docker info > /dev/null 2>&1; do sleep 2; done
 docker compose up -d
 until docker exec raisetime-postgres pg_isready -U raisetime > /dev/null 2>&1; do sleep 1; done
+until curl -sf -o /dev/null http://localhost:9090/; do sleep 1; done
 ```
+
+S3Mock (`raisetime-s3mock`, Adobe S3Mock) stands in for AWS S3 in
+development: no authentication, bucket `raisetime-images` is created on
+start, and uploaded images can be fetched at
+`http://localhost:9090/raisetime-images/{key}`. The backend tests
+(`S3ImageStorageTest`) also need it running.
 
 ## 2. Backend (Spring Boot, port 8081)
 
@@ -80,7 +87,7 @@ screenshots, so ask the user to confirm visually.
 ```bash
 lsof -ti tcp:8081 -sTCP:LISTEN | xargs -r kill
 lsof -ti tcp:5174 -sTCP:LISTEN | xargs -r kill
-docker compose stop   # only this project's PostgreSQL (raisetime-postgres)
+docker compose stop   # only this project's containers (raisetime-postgres, raisetime-s3mock)
 ```
 
 ## Gotchas

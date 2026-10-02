@@ -20,6 +20,7 @@ repositories {
 
 ext {
 	mybatisSpringBootVersion = '4.1.0'
+	awsSdkVersion = '2.55.9'
 }
 
 dependencies {
@@ -32,6 +33,9 @@ dependencies {
 	// JWT の署名・検証（Nimbus）と、リクエストの JWT を検証するフィルター
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation "org.mybatis.spring.boot:mybatis-spring-boot-starter:${mybatisSpringBootVersion}"
+	// 投稿画像の保存先（本番は AWS S3、開発は S3 互換の S3Mock）
+	implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
+	implementation 'software.amazon.awssdk:s3'
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'

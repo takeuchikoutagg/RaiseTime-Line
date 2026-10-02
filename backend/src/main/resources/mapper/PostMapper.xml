@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.raisetime.mapper.PostMapper">
+
+    <!-- RETURNING で、DB が入れた id と作成日時を受け取る -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id,createdAt" keyColumn="id,created_at">
+        INSERT INTO posts (user_id, body)
+        VALUES (#{userId}, #{body})
+    </insert>
+
+    <select id="findById" resultType="com.example.raisetime.entity.Post">
+        SELECT id, user_id, body, edited_at, created_at, updated_at
+        FROM posts
+        WHERE id = #{id}
+    </select>
+
+    <!--
+        タイムライン（F-03）：自分の投稿と、フォロー中の人の投稿。
+        id は作成順に増えるので、「新しい順」と「この id より古いもの（カーソル）」には id を使う
+    -->
+    <select id="findTimeline" resultType="com.example.raisetime.entity.PostWithAuthor">
+        SELECT p.id, p.user_id, p.body, p.edited_at, p.created_at, p.updated_at,
+               u.username AS author_username,
+               u.name AS author_name
+        FROM posts p
+        JOIN users u ON u.id = p.user_id
+        WHERE (p.user_id = #{viewerId}
+               OR p.user_id IN (SELECT f.followee_id FROM follows f WHERE f.follower_id = #{viewerId}))
+        <if test="before != null">
+          AND p.id &lt; #{before}
+        </if>
+        ORDER BY p.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="delete">
+        DELETE FROM posts WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.raisetime.mapper.PostImageMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO post_images (post_id, s3_key, position)
+        VALUES (#{postId}, #{s3Key}, #{position})
+    </insert>
+
+    <select id="findByPostIds" resultType="com.example.raisetime.entity.PostImage">
+        SELECT id, post_id, s3_key, position, created_at
+        FROM post_images
+        WHERE post_id IN
+        <foreach collection="list" item="postId" open="(" separator="," close=")">
+            #{postId}
+        </foreach>
+        ORDER BY post_id, position
+    </select>
+
+</mapper>
