@@ -34,8 +34,14 @@ export default function FollowButton({ username, followedByMe, onChange }) {
   return (
     <div className={styles.wrapper}>
       {followedByMe ? (
-        <button type="button" className={`${styles.button} ${styles.following}`} onClick={handleClick} disabled={pending}>
-          {/* 見た目はマウスを乗せると切り替わる。読み上げでは「フォロー中」と伝える */}
+        <button
+          type="button"
+          className={`${styles.button} ${styles.following}`}
+          onClick={handleClick}
+          disabled={pending}
+          // 「フォロー解除」はマウスを乗せたときしか見えないので、読み上げでは押すと解除されることも伝える
+          aria-label={`フォロー中（押すと @${username} のフォローを解除）`}
+        >
           <span className={styles.default}>フォロー中</span>
           <span className={styles.hover} aria-hidden="true">
             フォロー解除

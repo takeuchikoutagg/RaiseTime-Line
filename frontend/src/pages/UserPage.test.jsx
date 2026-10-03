@@ -108,7 +108,7 @@ describe('UserPage', () => {
     await user.click(await screen.findByRole('button', { name: 'フォローする' }))
 
     expect(followUser).toHaveBeenCalledWith('hanako')
-    expect(await screen.findByRole('button', { name: 'フォロー中' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^フォロー中/ })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'プロフィール' })).toHaveTextContent('16 フォロワー')
   })
 
@@ -208,5 +208,31 @@ describe('UserPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: '山田太郎' })).toBeInTheDocument()
     expect(fetchUser).toHaveBeenCalledWith('taro_dev')
+  })
+
+  it('ヘッダーでは、今いるページ（ホーム・マイページ）のボタンが太字になる', async () => {
+    vi.mocked(fetchTimeline).mockResolvedValue({ items: [], nextCursor: null })
+    vi.mocked(fetchUser).mockResolvedValue(profile({ username: 'taro_dev', name: '山田太郎', isMe: true }))
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })
+    const { user } = renderPage('/')
+
+    expect(screen.getByRole('link', { name: 'ホーム' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'マイページ' })).not.toHaveAttribute('aria-current')
+
+    await user.click(screen.getByRole('link', { name: 'マイページ' }))
+    await screen.findByRole('heading', { level: 1, name: '山田太郎' })
+
+    expect(screen.getByRole('link', { name: 'マイページ' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'マイページ' }).className).toMatch(/active/)
+    expect(screen.getByRole('link', { name: 'ホーム' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('他の人のページでは、マイページは太字にならない', async () => {
+    vi.mocked(fetchUser).mockResolvedValue(profile())
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })
+    renderPage()
+
+    await screen.findByRole('region', { name: 'プロフィール' })
+    expect(screen.getByRole('link', { name: 'マイページ' })).not.toHaveAttribute('aria-current')
   })
 })

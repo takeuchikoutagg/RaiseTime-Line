@@ -45,7 +45,7 @@ describe('FollowButton', () => {
 
     expect(followUser).toHaveBeenCalledWith('hanako')
     expect(onChange).toHaveBeenCalledWith({ followedByMe: true, followerCount: 16 })
-    expect(await screen.findByRole('button', { name: 'フォロー中' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^フォロー中/ })).toBeInTheDocument()
   })
 
   it('フォロー中なら「フォロー中」。押すと確認なしで解除して「フォローする」に戻る', async () => {
@@ -53,16 +53,18 @@ describe('FollowButton', () => {
     vi.mocked(unfollowUser).mockResolvedValue({ followedByMe: false, followerCount: 15 })
     render(<Harness initial />)
 
-    await user.click(screen.getByRole('button', { name: 'フォロー中' }))
+    await user.click(screen.getByRole('button', { name: /^フォロー中/ }))
 
     expect(unfollowUser).toHaveBeenCalledWith('hanako')
     expect(followUser).not.toHaveBeenCalled()
     expect(await screen.findByRole('button', { name: 'フォローする' })).toBeInTheDocument()
   })
 
-  it('フォロー中のボタンには、マウスを乗せたとき用の「フォロー解除」も入っている（読み上げには出さない）', () => {
+  it('フォロー中のボタンは、読み上げでも押すと解除されることが分かる名前にする', () => {
     render(<Harness initial />)
 
+    expect(screen.getByRole('button', { name: 'フォロー中（押すと @hanako のフォローを解除）' })).toBeInTheDocument()
+    // マウスを乗せたとき用の「フォロー解除」は見た目だけ
     expect(screen.getByText('フォロー解除')).toHaveAttribute('aria-hidden', 'true')
   })
 

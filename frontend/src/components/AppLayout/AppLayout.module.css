@@ -52,6 +52,11 @@
   text-decoration: none;
 }
 
+/* 今いるページ（prototype の .app-nav__link.is-active） */
+.active {
+  font-weight: 700;
+}
+
 .navLink:disabled {
   opacity: 0.5;
   cursor: not-allowed;
