@@ -1,7 +1,7 @@
 import { act, cleanup, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { checkNewPosts, createPost, deletePost, fetchTimeline, likePost } from '../api/posts.js'
+import { checkNewPosts, createPost, deletePost, fetchTimeline, likePost, updatePost } from '../api/posts.js'
 import App from '../App.jsx'
 import { installIntersectionObserverMock } from '../test/intersectionObserver.js'
 import { renderWithAuth } from '../test/renderWithAuth.jsx'
@@ -14,6 +14,7 @@ vi.mock('../api/posts.js', () => ({
   deletePost: vi.fn(),
   likePost: vi.fn(),
   unlikePost: vi.fn(),
+  updatePost: vi.fn(),
 }))
 
 const taro = { username: 'taro_dev', name: '山田太郎' }
@@ -240,6 +241,26 @@ describe('TimelinePage', () => {
 
     expect(deletePost).toHaveBeenCalledWith(2)
     expect(bodies()).toEqual(['投稿1'])
+  })
+
+  it('自分の投稿を「…」→「編集」で直して保存すると、その場で内容が変わり「編集済み」が付く（並び順は変わらない）', async () => {
+    vi.mocked(fetchTimeline).mockResolvedValue({ items: [post(2), post(1)], nextCursor: null })
+    vi.mocked(updatePost).mockResolvedValue(post(2, { body: '投稿2（直した）', editedAt: new Date().toISOString() }))
+    const { user } = renderTimeline()
+
+    const target = (await screen.findByText('投稿2')).closest('article')
+    await user.click(within(target).getByRole('button', { name: 'メニュー' }))
+    await user.click(within(target).getByRole('menuitem', { name: '編集' }))
+    const dialog = screen.getByRole('dialog', { name: '投稿を編集' })
+    await user.clear(within(dialog).getByLabelText('本文'))
+    await user.type(within(dialog).getByLabelText('本文'), '投稿2（直した）')
+    await user.click(within(dialog).getByRole('button', { name: '保存する' }))
+
+    expect(updatePost).toHaveBeenCalledWith(2, { body: '投稿2（直した）', keepImageIds: [], images: [] })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const edited = screen.getByText('投稿2（直した）').closest('article')
+    expect(within(edited).getByText('· 編集済み')).toBeInTheDocument()
+    expect(screen.getAllByRole('article')[0]).toBe(edited)
   })
 
   it('他人の投稿には「…」メニューが出ない', async () => {

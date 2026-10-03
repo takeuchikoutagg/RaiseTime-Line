@@ -23,6 +23,20 @@ export function createPost({ body, images = [] }) {
   return request('/api/posts', { method: 'POST', body: form })
 }
 
+// 投稿を編集する（本人のみ）。本文・残す画像の id（keepImageIds、この順に並ぶ）・追加する画像（File の配列）を
+// multipart/form-data で送る。編集後の PostResponse を返す
+export function updatePost(postId, { body, keepImageIds = [], images = [] }) {
+  const form = new FormData()
+  form.append('body', body)
+  for (const id of keepImageIds) {
+    form.append('keepImageIds', id)
+  }
+  for (const image of images) {
+    form.append('images', image)
+  }
+  return request(`/api/posts/${encodeURIComponent(postId)}`, { method: 'PATCH', body: form })
+}
+
 export function deletePost(postId) {
   return request(`/api/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' })
 }

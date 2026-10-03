@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { fetchComments, fetchPost } from '../api/posts.js'
 import CommentForm from '../components/CommentForm/CommentForm.jsx'
+import ComposeModal from '../components/ComposeModal/ComposeModal.jsx'
 import CommentItem from '../components/CommentItem/CommentItem.jsx'
 import DeleteConfirmModal from '../components/DeleteConfirmModal/DeleteConfirmModal.jsx'
 import Loading from '../components/Loading/Loading.jsx'
@@ -30,6 +31,7 @@ function PostDetail({ postId }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const [deleting, setDeleting] = useState(null)
+  const [editing, setEditing] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   // 投稿と、コメントの最初の20件を同時に読み込む
@@ -135,7 +137,7 @@ function PostDetail({ postId }) {
   return (
     <>
       <BackButton onClick={goBack} />
-      <PostCard post={post} detail onUpdate={handleUpdate} onDeleteRequest={setDeleting} />
+      <PostCard post={post} detail onUpdate={handleUpdate} onEditRequest={setEditing} onDeleteRequest={setDeleting} />
       <CommentForm postId={post.id} onCreated={handleCommentCreated} />
 
       <section aria-label="コメント一覧">
@@ -156,6 +158,16 @@ function PostDetail({ postId }) {
         )}
       </section>
 
+      {editing && (
+        <ComposeModal
+          post={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(saved) => {
+            setPost(saved)
+            setEditing(null)
+          }}
+        />
+      )}
       {deleting && (
         // この画面で削除したら、投稿はもう無いのでタイムラインへ戻る（docs/画面設計.md S-05）
         <DeleteConfirmModal post={deleting} onClose={() => setDeleting(null)} onDeleted={() => navigate('/', { replace: true })} />

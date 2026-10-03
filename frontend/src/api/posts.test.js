@@ -9,6 +9,7 @@ import {
   fetchTimeline,
   likePost,
   unlikePost,
+  updatePost,
 } from './posts.js'
 
 function jsonResponse(status, body) {
@@ -116,5 +117,21 @@ describe('posts API', () => {
     expect(options.method).toBe('POST')
     expect(options.headers['Content-Type']).toBe('application/json')
     expect(JSON.parse(options.body)).toEqual({ body: 'おつかれさま！' })
+  })
+
+  it('updatePost：PATCH の multipart/form-data で、本文・残す画像の id・追加する画像を送る', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { id: 7 }))
+    const image = new File(['x'], 'c.png', { type: 'image/png' })
+
+    await updatePost(7, { body: '編集後', keepImageIds: [72, 71], images: [image] })
+
+    const [path, options] = fetchMock.mock.calls[0]
+    expect(path).toBe('/api/posts/7')
+    expect(options.method).toBe('PATCH')
+    expect(options.body.get('body')).toBe('編集後')
+    expect(options.body.getAll('keepImageIds')).toEqual(['72', '71'])
+    expect(options.body.getAll('images')).toHaveLength(1)
+    expect(options.headers['Content-Type']).toBeUndefined()
+    expect(options.headers['X-XSRF-TOKEN']).toBe('csrf-123')
   })
 })

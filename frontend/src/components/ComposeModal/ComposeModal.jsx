@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { createPost } from '../../api/posts.js'
+import { createPost, updatePost } from '../../api/posts.js'
 import { countChars } from '../../utils/text.js'
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -13,11 +13,23 @@ import {
 import Modal from '../Modal/Modal.jsx'
 import styles from './ComposeModal.module.css'
 
-// S-04 投稿作成モーダル（docs/機能定義書/F-04_投稿作成.md）
-export default function ComposeModal({ onClose, onCreated }) {
-  const [body, setBody] = useState('')
-  // { id, file, previewUrl }
-  const [images, setImages] = useState([])
+// 編集モードで、変更があるまま閉じようとしたときの確認（prototype と同じ）
+export const DISCARD_CONFIRM_MESSAGE = '変更を破棄しますか？'
+
+// 編集モードで開いたときの画像の一覧。今付いている画像（existingId あり）から始める
+function initialImages(post) {
+  return (post?.images ?? []).map((image) => ({ id: `existing-${image.id}`, existingId: image.id, previewUrl: image.url }))
+}
+
+// S-04 投稿作成・編集モーダル（docs/機能定義書/F-04_投稿作成.md・F-10_投稿編集.md。prototype の openComposeModal と同じ）。
+// - 作成モード（post なし）：「新しい投稿」「投稿する」。作成したら onCreated(作成した投稿)
+// - 編集モード（post あり）：「投稿を編集」「保存する」。今の本文・画像が入った状態で開く。
+//   何も変えていないときは保存できず、変更があるまま閉じようとしたら確認する。保存したら onSaved(編集後の投稿)
+export default function ComposeModal({ post = null, onClose, onCreated, onSaved }) {
+  const isEdit = post != null
+  const [body, setBody] = useState(post?.body ?? '')
+  // 今付いている画像は { id, existingId, previewUrl }、新しく選んだ画像は { id, file, previewUrl }
+  const [images, setImages] = useState(() => initialImages(post))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputId = useId()
@@ -27,10 +39,25 @@ export default function ComposeModal({ onClose, onCreated }) {
   useEffect(() => {
     imagesRef.current = images
   }, [images])
-  useEffect(() => () => imagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl)), [])
+  // 新しく選んだ画像のプレビュー URL だけを解放する（今付いている画像は S3 の URL なので解放しない）
+  useEffect(
+    () => () => imagesRef.current.filter((image) => image.file).forEach((image) => URL.revokeObjectURL(image.previewUrl)),
+    [],
+  )
 
   const length = countChars(body)
-  const canSubmit = isValidBody(body) && !submitting
+  // 編集モードで、本文か画像（外した・足した・並び）が変わっているか
+  const dirty =
+    isEdit &&
+    (body !== post.body ||
+      images.length !== post.images.length ||
+      images.some((image, index) => image.existingId !== post.images[index].id))
+  const canSubmit = isValidBody(body) && !submitting && (!isEdit || dirty)
+
+  function handleClose() {
+    if (dirty && !submitting && !window.confirm(DISCARD_CONFIRM_MESSAGE)) return
+    onClose()
+  }
 
   function handleFiles(event) {
     const { accepted, error: imageError } = checkImages([...event.target.files], images.length)
@@ -46,7 +73,7 @@ export default function ComposeModal({ onClose, onCreated }) {
   function removeImage(id, message = '') {
     setImages((current) => {
       const removed = current.find((image) => image.id === id)
-      if (removed) URL.revokeObjectURL(removed.previewUrl)
+      if (removed?.file) URL.revokeObjectURL(removed.previewUrl)
       return current.filter((image) => image.id !== id)
     })
     setError(message)
@@ -61,8 +88,18 @@ export default function ComposeModal({ onClose, onCreated }) {
     setSubmitting(true)
     setError('')
     try {
-      const post = await createPost({ body, images: images.map((image) => image.file) })
-      onCreated(post)
+      if (isEdit) {
+        const saved = await updatePost(post.id, {
+          body,
+          // 残す画像は今の並びのまま、追加する画像はそのあとに並ぶ（サーバーが表示順を振り直す）
+          keepImageIds: images.filter((image) => image.existingId != null).map((image) => image.existingId),
+          images: images.filter((image) => image.file).map((image) => image.file),
+        })
+        onSaved(saved)
+      } else {
+        const created = await createPost({ body, images: images.map((image) => image.file) })
+        onCreated(created)
+      }
     } catch (e) {
       // 画像の形式（中身の判定）・サイズ・S3 の失敗などは、サーバーのメッセージをそのまま出す
       setError(e.message)
@@ -71,7 +108,7 @@ export default function ComposeModal({ onClose, onCreated }) {
   }
 
   return (
-    <Modal title="新しい投稿" onClose={onClose}>
+    <Modal title={isEdit ? '投稿を編集' : '新しい投稿'} onClose={handleClose}>
       <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <textarea
           className={styles.textarea}
@@ -89,7 +126,7 @@ export default function ComposeModal({ onClose, onCreated }) {
                 <img
                   src={image.previewUrl}
                   alt={`選んだ画像${index + 1}`}
-                  onError={() => removeImage(image.id, IMAGE_TYPE_MESSAGE)}
+                  onError={image.file ? () => removeImage(image.id, IMAGE_TYPE_MESSAGE) : undefined}
                 />
                 <button
                   type="button"
@@ -129,7 +166,7 @@ export default function ComposeModal({ onClose, onCreated }) {
         </p>
         <div className={styles.actions}>
           <button type="submit" className={styles.submit} disabled={!canSubmit}>
-            {submitting ? '投稿中…' : '投稿する'}
+            {isEdit ? (submitting ? '保存中…' : '保存する') : submitting ? '投稿中…' : '投稿する'}
           </button>
         </div>
       </form>

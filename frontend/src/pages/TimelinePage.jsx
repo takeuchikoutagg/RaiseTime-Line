@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router'
 import { checkNewPosts, fetchTimeline } from '../api/posts.js'
 import { useAuth } from '../auth/useAuth.js'
 import Avatar from '../components/Avatar/Avatar.jsx'
+import ComposeModal from '../components/ComposeModal/ComposeModal.jsx'
 import DeleteConfirmModal from '../components/DeleteConfirmModal/DeleteConfirmModal.jsx'
 import Loading from '../components/Loading/Loading.jsx'
 import PostCard from '../components/PostCard/PostCard.jsx'
@@ -26,6 +27,7 @@ export default function TimelinePage() {
   const [hasNew, setHasNew] = useState(false)
   const [showingNew, setShowingNew] = useState(false)
   const [deleting, setDeleting] = useState(null)
+  const [editing, setEditing] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   // 開いた時点ですでにある createdPost（投稿詳細などから戻ってきたときの、前に作った投稿）は足さない。
   // 最初の読み込みで、サーバーから最新の一覧を取るため
@@ -148,6 +150,12 @@ export default function TimelinePage() {
     setPosts((current) => current.map((p) => (p.id === postId ? { ...p, ...changes } : p)))
   }, [])
 
+  // 編集したら、一覧のその投稿を編集後の内容に置き換える（並び順は変わらない）
+  function handleSaved(saved) {
+    setPosts((current) => current.map((p) => (p.id === saved.id ? saved : p)))
+    setEditing(null)
+  }
+
   function handleDeleted(postId) {
     setPosts((current) => current.filter((p) => p.id !== postId))
     setDeleting(null)
@@ -188,7 +196,13 @@ export default function TimelinePage() {
       {status === 'ready' && (
         <>
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} onUpdate={handleUpdate} onDeleteRequest={setDeleting} />
+            <PostCard
+              key={post.id}
+              post={post}
+              onUpdate={handleUpdate}
+              onEditRequest={setEditing}
+              onDeleteRequest={setDeleting}
+            />
           ))}
           {/* この目印が画面に近づいたら、次の20件を読み込む */}
           <div ref={sentinelRef} data-testid="timeline-sentinel" />
@@ -205,6 +219,7 @@ export default function TimelinePage() {
         </>
       )}
 
+      {editing && <ComposeModal post={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />}
       {deleting && (
         <DeleteConfirmModal post={deleting} onClose={() => setDeleting(null)} onDeleted={handleDeleted} />
       )}

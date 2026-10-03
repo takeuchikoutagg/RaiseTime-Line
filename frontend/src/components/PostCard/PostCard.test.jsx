@@ -29,13 +29,14 @@ function post(overrides = {}) {
 }
 
 // 親（タイムラインなど）と同じく、onUpdate で受け取った変更を投稿に反映して表示し直す
-function Harness({ initial, detail = false, onDeleteRequest = vi.fn() }) {
+function Harness({ initial, detail = false, onDeleteRequest = vi.fn(), onEditRequest = vi.fn() }) {
   const [current, setCurrent] = useState(initial)
   return (
     <PostCard
       post={current}
       detail={detail}
       onDeleteRequest={onDeleteRequest}
+      onEditRequest={onEditRequest}
       onUpdate={(id, changes) => setCurrent((p) => (p.id === id ? { ...p, ...changes } : p))}
     />
   )
@@ -129,6 +130,20 @@ describe('PostCard', () => {
     await user.click(screen.getByRole('menuitem', { name: '削除' }))
 
     expect(onDeleteRequest).toHaveBeenCalledWith(mine)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('自分の投稿は「…」→「編集」で onEditRequest を呼ぶ（メニューは 編集・削除 の順）', async () => {
+    const user = userEvent.setup()
+    const onEditRequest = vi.fn()
+    const mine = post({ isMine: true })
+    renderCard(mine, { onEditRequest })
+
+    await user.click(screen.getByRole('button', { name: 'メニュー' }))
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['編集', '削除'])
+    await user.click(screen.getByRole('menuitem', { name: '編集' }))
+
+    expect(onEditRequest).toHaveBeenCalledWith(mine)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
