@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Link, Outlet } from 'react-router'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../../auth/useAuth.js'
 import ComposeModal from '../ComposeModal/ComposeModal.jsx'
 import styles from './AppLayout.module.css'
@@ -9,6 +9,8 @@ import styles from './AppLayout.module.css'
 // 投稿モーダルはヘッダーの「投稿」ボタンからも開くので、ここで持つ。作成した投稿は Outlet の context で画面に渡す
 export default function AppLayout() {
   const { logout } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [composeOpen, setComposeOpen] = useState(false)
   const [createdPost, setCreatedPost] = useState(null)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -16,9 +18,11 @@ export default function AppLayout() {
   const openCompose = useCallback(() => setComposeOpen(true), [])
   const closeCompose = useCallback(() => setComposeOpen(false), [])
 
+  // 投稿できたら、タイムラインの先頭に出す。投稿詳細などタイムライン以外の画面で投稿したときは、タイムラインへ移る
   function handleCreated(post) {
     setCreatedPost(post)
     setComposeOpen(false)
+    if (location.pathname !== '/') navigate('/')
   }
 
   async function handleLogout() {

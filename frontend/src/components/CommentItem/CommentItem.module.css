@@ -1,0 +1,32 @@
+/* prototype の .comment と同じ */
+.comment {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--color-text-sub);
+  font-size: 0.9rem;
+}
+
+.name {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.body {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -36,6 +36,82 @@
   word-break: break-word;
 }
 
+/* タイムラインでは、本文を押すと投稿詳細へ。マウスを乗せると投稿全体の背景色が変わる（prototype と同じ） */
+.clickable:hover {
+  background: var(--color-surface);
+}
+
+.bodyLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.bodyLink:hover {
+  text-decoration: none;
+}
+
+.detail .body {
+  font-size: 1.15rem;
+}
+
+.meta {
+  margin: 8px 0 0;
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+}
+
+/* いいね・コメント数（prototype の .post__actions / .action と同じ） */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 32px;
+  margin-top: 8px;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-sub);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+span.action {
+  cursor: default;
+}
+
+.action:hover {
+  background: var(--color-surface);
+  text-decoration: none;
+}
+
+span.action:hover {
+  background: none;
+}
+
+.liked,
+.like:hover {
+  color: var(--color-like);
+}
+
+/* いいねの失敗メッセージは、ボタンの並びをずらさないよう、操作欄の下の行に出す */
+.actionError {
+  flex-basis: 100%;
+  order: 1;
+  color: var(--color-danger);
+  font-size: 0.8rem;
+}
+
 .images {
   display: grid;
   gap: 4px;

@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { checkNewPosts, createPost, deletePost, fetchTimeline } from './posts.js'
+import {
+  checkNewPosts,
+  createComment,
+  createPost,
+  deletePost,
+  fetchComments,
+  fetchPost,
+  fetchTimeline,
+  likePost,
+  unlikePost,
+} from './posts.js'
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -62,5 +72,49 @@ describe('posts API', () => {
     expect(path).toBe('/api/posts/10')
     expect(options.method).toBe('DELETE')
     expect(options.headers['X-XSRF-TOKEN']).toBe('csrf-123')
+  })
+
+  it('fetchPost：投稿詳細を GET で取る', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { id: 10 }))
+
+    await expect(fetchPost(10)).resolves.toEqual({ id: 10 })
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/posts/10')
+  })
+
+  it('likePost / unlikePost：PUT / DELETE で呼び、CSRF ヘッダーを付ける', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, { likeCount: 1, likedByMe: true })))
+
+    await expect(likePost(10)).resolves.toEqual({ likeCount: 1, likedByMe: true })
+    await unlikePost(10)
+
+    expect(fetchMock.mock.calls.map(([path, options]) => [path, options.method])).toEqual([
+      ['/api/posts/10/like', 'PUT'],
+      ['/api/posts/10/like', 'DELETE'],
+    ])
+    expect(fetchMock.mock.calls[0][1].headers['X-XSRF-TOKEN']).toBe('csrf-123')
+  })
+
+  it('fetchComments：after を付けて呼べる', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], nextCursor: null })))
+
+    await fetchComments(10)
+    await fetchComments(10, 88)
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/posts/10/comments',
+      '/api/posts/10/comments?after=88',
+    ])
+  })
+
+  it('createComment：JSON で本文を送る', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 1 }))
+
+    await createComment(10, 'おつかれさま！')
+
+    const [path, options] = fetchMock.mock.calls[0]
+    expect(path).toBe('/api/posts/10/comments')
+    expect(options.method).toBe('POST')
+    expect(options.headers['Content-Type']).toBe('application/json')
+    expect(JSON.parse(options.body)).toEqual({ body: 'おつかれさま！' })
   })
 })

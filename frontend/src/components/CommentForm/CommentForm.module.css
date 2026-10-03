@@ -1,0 +1,72 @@
+/* prototype の .comment-form と同じ */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.counter {
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+}
+
+.over {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* prototype の .btn.btn--primary.btn--small */
+.submit {
+  padding: 4px 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.error:empty {
+  display: none;
+}

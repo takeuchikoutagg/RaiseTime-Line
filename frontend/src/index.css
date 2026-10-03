@@ -8,6 +8,8 @@
   --color-primary: #1d9bf0;
   --color-primary-hover: #1a8cd8;
   --color-danger: #f4212e;
+  /* いいね済みのハート（prototype と同じ） */
+  --color-like: #f91880;
   --radius: 16px;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", sans-serif;
 }
