@@ -85,6 +85,14 @@ describe('PostCard', () => {
     expect(screen.getByRole('link', { name: /^コメント \d+件$/ })).toHaveAttribute('href', '/posts/10')
   })
 
+  it('アバター・名前・@ユーザーID は、投稿した人のユーザーページへのリンクになる', () => {
+    renderCard()
+
+    expect(screen.getByRole('link', { name: '山田太郎のページ' })).toHaveAttribute('href', '/users/taro_dev')
+    expect(screen.getByRole('link', { name: '山田太郎' })).toHaveAttribute('href', '/users/taro_dev')
+    expect(screen.getByRole('link', { name: '@taro_dev' })).toHaveAttribute('href', '/users/taro_dev')
+  })
+
   it('本文の HTML は文字のまま表示する（XSS 対策）', () => {
     const { container } = renderCard(post({ body: '<img src=x onerror=alert(1)>' }))
 

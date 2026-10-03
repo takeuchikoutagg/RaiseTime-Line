@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import PostDetailPage from './pages/PostDetailPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
 import TimelinePage from './pages/TimelinePage.jsx'
+import UserPage from './pages/UserPage.jsx'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<TimelinePage />} />
           <Route path="/posts/:postId" element={<PostDetailPage />} />
+          <Route path="/users/:username" element={<UserPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

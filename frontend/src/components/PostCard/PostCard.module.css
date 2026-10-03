@@ -26,6 +26,21 @@
   font-weight: 700;
 }
 
+.username {
+  color: var(--color-text-sub);
+}
+
+.avatarLink {
+  flex-shrink: 0;
+  align-self: flex-start;
+  border-radius: 50%;
+}
+
+.avatarLink:hover {
+  text-decoration: none;
+  opacity: 0.9;
+}
+
 .edited {
   font-size: 0.8rem;
 }

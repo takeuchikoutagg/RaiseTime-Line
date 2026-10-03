@@ -5,10 +5,10 @@ import ComposeModal from '../ComposeModal/ComposeModal.jsx'
 import styles from './AppLayout.module.css'
 
 // ログイン後の画面の共通部分（docs/画面設計.md 3章の共通ヘッダー）。
-// 検索・マイページは、その機能ができてから足す。
+// 検索は、その機能（F-09）ができてから足す。
 // 投稿モーダルはヘッダーの「投稿」ボタンからも開くので、ここで持つ。作成した投稿は Outlet の context で画面に渡す
 export default function AppLayout() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [composeOpen, setComposeOpen] = useState(false)
@@ -41,6 +41,9 @@ export default function AppLayout() {
           <nav className={styles.nav} aria-label="メイン">
             <Link to="/" className={styles.navLink}>
               ホーム
+            </Link>
+            <Link to={`/users/${encodeURIComponent(user.username)}`} className={styles.navLink}>
+              マイページ
             </Link>
             <button type="button" className={`${styles.navLink} ${styles.postButton}`} onClick={openCompose}>
               投稿

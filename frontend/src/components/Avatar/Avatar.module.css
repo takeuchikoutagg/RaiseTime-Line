@@ -18,3 +18,10 @@
   height: 36px;
   font-size: 0.9rem;
 }
+
+/* ユーザーページのプロフィール（prototype の .avatar--large） */
+.large {
+  width: 72px;
+  height: 72px;
+  font-size: 1.6rem;
+}
