@@ -116,6 +116,10 @@ class PostServiceTest {
         assertThat(response.images()).isEmpty();
         assertThat(response.isMine()).isTrue();
         assertThat(response.editedAt()).isNull();
+        // 作ったばかりなので、いいね・コメントは0件
+        assertThat(response.likeCount()).isZero();
+        assertThat(response.commentCount()).isZero();
+        assertThat(response.likedByMe()).isFalse();
         verify(imageStorage, never()).put(anyString(), any(), anyString());
     }
 
@@ -307,7 +311,11 @@ class PostServiceTest {
 
     @Test
     void timeline_returnsPostsWithImages_andIsMine_withoutNextCursorWhenNoMore() {
-        when(postMapper.findTimeline(1L, null, 21)).thenReturn(List.of(row(9, 2, "hanako"), row(8, 1, "taro_dev")));
+        PostWithAuthor liked = row(9, 2, "hanako");
+        liked.setLikeCount(12);
+        liked.setCommentCount(3);
+        liked.setLikedByMe(true);
+        when(postMapper.findTimeline(1L, null, 21)).thenReturn(List.of(liked, row(8, 1, "taro_dev")));
         when(postImageMapper.findByPostIds(List.of(9L, 8L))).thenReturn(List.of(image(9, "posts/9/a.png", 1)));
 
         TimelineResponse response = postService.timeline(1L, null);
@@ -318,6 +326,9 @@ class PostServiceTest {
         assertThat(response.items().get(0).images()).extracting(PostResponse.Image::url)
                 .containsExactly("http://img/posts/9/a.png");
         assertThat(response.items().get(1).images()).isEmpty();
+        assertThat(response.items()).extracting(PostResponse::likeCount).containsExactly(12L, 0L);
+        assertThat(response.items()).extracting(PostResponse::commentCount).containsExactly(3L, 0L);
+        assertThat(response.items()).extracting(PostResponse::likedByMe).containsExactly(true, false);
         assertThat(response.nextCursor()).isNull();
     }
 
@@ -349,5 +360,34 @@ class PostServiceTest {
         assertThat(response.items()).isEmpty();
         assertThat(response.nextCursor()).isNull();
         verify(postImageMapper, never()).findByPostIds(any());
+    }
+
+    // ---------- 投稿詳細 ----------
+
+    @Test
+    void findById_returnsPostWithImagesAndCounts() {
+        PostWithAuthor post = row(9, 2, "hanako");
+        post.setLikeCount(5);
+        post.setCommentCount(2);
+        post.setLikedByMe(true);
+        when(postMapper.findDetailById(9L, 1L)).thenReturn(post);
+        when(postImageMapper.findByPostIds(List.of(9L))).thenReturn(List.of(image(9, "posts/9/a.png", 1)));
+
+        PostResponse response = postService.findById(9L, 1L);
+
+        assertThat(response.id()).isEqualTo(9L);
+        assertThat(response.author()).isEqualTo(new PostResponse.Author("hanako", "hanakoさん"));
+        assertThat(response.images()).extracting(PostResponse.Image::url).containsExactly("http://img/posts/9/a.png");
+        assertThat(response.likeCount()).isEqualTo(5L);
+        assertThat(response.commentCount()).isEqualTo(2L);
+        assertThat(response.likedByMe()).isTrue();
+        assertThat(response.isMine()).isFalse();
+    }
+
+    @Test
+    void findById_missingPost_isNotFound() {
+        assertThatThrownBy(() -> postService.findById(9L, 1L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("投稿が見つかりません");
     }
 }

@@ -186,4 +186,64 @@ class PostMapperTest {
                 .extracting(PostImage::getS3Key).containsExactly("posts/other/1.png");
         assertThat(postMapper.delete(a.getId())).isZero();
     }
+
+    // ---------- いいね数・コメント数（F-05 / F-06） ----------
+
+    private void like(Long postId, Long userId) {
+        jdbcTemplate.update("INSERT INTO likes (post_id, user_id) VALUES (?, ?)", postId, userId);
+    }
+
+    private void comment(Long postId, Long userId) {
+        jdbcTemplate.update("INSERT INTO comments (post_id, user_id, body) VALUES (?, ?, 'コメント')", postId, userId);
+    }
+
+    @Test
+    void timeline_includesLikeAndCommentCounts_andLikedByViewer() {
+        Post liked = insertPost(taro, "いいねされた投稿");
+        Post plain = insertPost(taro, "何もない投稿");
+        like(liked.getId(), taro);
+        like(liked.getId(), hanako);
+        like(liked.getId(), stranger);
+        comment(liked.getId(), hanako);
+        comment(liked.getId(), hanako);
+
+        List<PostWithAuthor> rows = postMapper.findTimeline(taro, null, 20);
+
+        assertThat(rows).extracting(Post::getId).containsExactly(plain.getId(), liked.getId());
+        assertThat(rows).extracting(PostWithAuthor::getLikeCount).containsExactly(0L, 3L);
+        assertThat(rows).extracting(PostWithAuthor::getCommentCount).containsExactly(0L, 2L);
+        assertThat(rows).extracting(PostWithAuthor::isLikedByMe).containsExactly(false, true);
+    }
+
+    @Test
+    void findDetailById_returnsAnyonesPost_withCounts_andLikedByViewer() {
+        // フォローしていない人の投稿も取れる
+        Post post = insertPost(stranger, "知らない人の投稿");
+        like(post.getId(), hanako);
+        comment(post.getId(), taro);
+
+        PostWithAuthor byTaro = postMapper.findDetailById(post.getId(), taro);
+        assertThat(byTaro.getBody()).isEqualTo("知らない人の投稿");
+        assertThat(byTaro.getAuthorUsername()).isEqualTo("pm_stranger");
+        assertThat(byTaro.getAuthorName()).isEqualTo("pm_strangerさん");
+        assertThat(byTaro.getLikeCount()).isEqualTo(1L);
+        assertThat(byTaro.getCommentCount()).isEqualTo(1L);
+        assertThat(byTaro.isLikedByMe()).isFalse();
+        assertThat(postMapper.findDetailById(post.getId(), hanako).isLikedByMe()).isTrue();
+        assertThat(postMapper.findDetailById(-1L, taro)).isNull();
+    }
+
+    @Test
+    void delete_removesCommentsAndLikesByCascade() {
+        Post post = insertPost(taro, "消す投稿");
+        like(post.getId(), hanako);
+        comment(post.getId(), hanako);
+
+        postMapper.delete(post.getId());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM likes WHERE post_id = ?", Long.class,
+                post.getId())).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM comments WHERE post_id = ?", Long.class,
+                post.getId())).isZero();
+    }
 }

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.raisetime.mapper.CommentMapper">
+
+    <!-- RETURNING で、DB が入れた id と作成日時を受け取る -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id,createdAt" keyColumn="id,created_at">
+        INSERT INTO comments (post_id, user_id, body)
+        VALUES (#{postId}, #{userId}, #{body})
+    </insert>
+
+    <!--
+        投稿詳細のコメント一覧（F-05）。会話の流れで読めるように古い順（id の小さい順）。
+        続きは「この id より新しいもの」（after）で取る
+    -->
+    <select id="findByPostId" resultType="com.example.raisetime.entity.CommentWithAuthor">
+        SELECT c.id, c.post_id, c.user_id, c.body, c.created_at, c.updated_at,
+               u.username AS author_username,
+               u.name AS author_name
+        FROM comments c
+        JOIN users u ON u.id = c.user_id
+        WHERE c.post_id = #{postId}
+        <if test="after != null">
+          AND c.id &gt; #{after}
+        </if>
+        ORDER BY c.id
+        LIMIT #{limit}
+    </select>
+
+</mapper>

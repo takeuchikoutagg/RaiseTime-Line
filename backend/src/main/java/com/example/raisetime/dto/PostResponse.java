@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 // 投稿1件のレスポンス（docs/機能定義書/00_共通仕様.md 5章の PostResponse）。
-// いいね数・コメント数・likedByMe は、いいね・コメントの機能を作るときに足す。インプレッション数などは持たない
+// インプレッション数・リツイート数などは持たない
 public record PostResponse(
         Long id,
         String body,
@@ -13,6 +13,10 @@ public record PostResponse(
         Instant editedAt,
         Author author,
         List<Image> images,
+        long likeCount,
+        long commentCount,
+        // ログイン中のユーザーがいいね済みか。いいねボタンの見た目（♡ / ♥）の切り替えに使う
+        boolean likedByMe,
         // ログイン中のユーザーの投稿か。画面はこれを見て「…」メニュー（削除など）を出すか決める。
         // 表示の切り替えのためだけのもので、削除の API では必ずサーバー側で投稿者を確認する
         boolean isMine
