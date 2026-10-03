@@ -66,7 +66,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 32px;
+  gap: 0 32px;
   margin-top: 8px;
 }
 
@@ -104,8 +104,10 @@ span.action:hover {
   color: var(--color-like);
 }
 
+/* いいねの失敗メッセージは、ボタンの並びをずらさないよう、操作欄の下の行に出す */
 .actionError {
-  margin-left: -16px;
+  flex-basis: 100%;
+  order: 1;
   color: var(--color-danger);
   font-size: 0.8rem;
 }
