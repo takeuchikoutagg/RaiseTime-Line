@@ -45,6 +45,10 @@ public class UserService {
     static final String USERNAME_MESSAGE = "@ユーザーIDは3〜15文字の半角英小文字・数字・_で入力してください";
     static final String USERNAME_TAKEN = "この@ユーザーIDはすでに使われています";
     static final String BIO_MESSAGE = "自己紹介は160文字以内で入力してください";
+    // プロフィール画像の上限。アイコンは小さく表示するだけなので、画面では 400×400px に縮めてから送る（数十〜100KB 程度）。
+    // この上限は、画面を通さずに API を直接呼ばれたときの歯止め
+    static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024;
+    static final String AVATAR_TOO_LARGE = "プロフィール画像は2MBまでです";
 
     private final UserMapper userMapper;
     private final PostService postService;
@@ -139,8 +143,8 @@ public class UserService {
         if (avatar == null || avatar.isEmpty()) {
             return null;
         }
-        if (avatar.getSize() > PostService.MAX_IMAGE_BYTES) {
-            throw new PayloadTooLargeException(PostService.IMAGE_TOO_LARGE);
+        if (avatar.getSize() > MAX_AVATAR_BYTES) {
+            throw new PayloadTooLargeException(AVATAR_TOO_LARGE);
         }
         try {
             return avatar.getBytes();

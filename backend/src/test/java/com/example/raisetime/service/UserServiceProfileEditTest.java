@@ -232,10 +232,12 @@ class UserServiceProfileEditTest {
                 avatar("not an image".getBytes()), false))
                 .isInstanceOf(InvalidInputException.class)
                 .hasMessage("JPEG・PNG・GIF・WebP の画像を選んでください");
-        byte[] big = new byte[5 * 1024 * 1024 + 1];
+        // プロフィール画像は2MBまで（投稿の画像の5MBより小さい）
+        byte[] big = new byte[2 * 1024 * 1024 + 1];
         System.arraycopy(PNG, 0, big, 0, PNG.length);
         assertThatThrownBy(() -> userService.updateProfile(1L, "山田太郎", "taro_dev", "", avatar(big), false))
-                .isInstanceOf(PayloadTooLargeException.class);
+                .isInstanceOf(PayloadTooLargeException.class)
+                .hasMessage("プロフィール画像は2MBまでです");
         verify(imageStorage, never()).put(anyString(), any(), anyString());
         verify(userMapper, never()).updateProfile(any(), any(), any(), any(), any());
     }
@@ -259,5 +261,16 @@ class UserServiceProfileEditTest {
         userService.updateProfile(1L, "山田太郎", "taro_dev", bio, null, false);
 
         verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "あ".repeat(80) + "\n" + "あ".repeat(79), null);
+    }
+
+    @Test
+    void update_avatarJustUnder2MB_isAccepted() {
+        currentUser(null);
+        byte[] justUnder = new byte[2 * 1024 * 1024];
+        System.arraycopy(PNG, 0, justUnder, 0, PNG.length);
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", "", avatar(justUnder), false);
+
+        verify(imageStorage).put(anyString(), any(), eq("image/png"));
     }
 }

@@ -85,10 +85,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of("FORBIDDEN", ex.getMessage()));
     }
 
-    // 1枚の画像が大きすぎる。MaxUploadSizeExceededException は、Spring がリクエストを読む段階で上限
-    // （application.properties の spring.servlet.multipart.*）を超えたとき
-    @ExceptionHandler({PayloadTooLargeException.class, MaxUploadSizeExceededException.class})
-    public ResponseEntity<ErrorResponse> handlePayloadTooLarge(Exception ex) {
+    // 画像が大きすぎる（投稿の画像は5MB、プロフィール画像は2MB。メッセージは投げた側で決める）
+    @ExceptionHandler(PayloadTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handlePayloadTooLarge(PayloadTooLargeException ex) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(ErrorResponse.of("PAYLOAD_TOO_LARGE", ex.getMessage()));
+    }
+
+    // Spring がリクエストを読む段階で、上限（application.properties の spring.servlet.multipart.*）を超えたとき
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
                 .body(ErrorResponse.of("PAYLOAD_TOO_LARGE", "画像は1枚5MBまでです"));
     }

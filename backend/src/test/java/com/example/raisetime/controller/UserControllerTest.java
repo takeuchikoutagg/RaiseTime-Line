@@ -9,6 +9,7 @@ import com.example.raisetime.exception.BadRequestException;
 import com.example.raisetime.exception.ConflictException;
 import com.example.raisetime.exception.InvalidInputException;
 import com.example.raisetime.exception.NotFoundException;
+import com.example.raisetime.exception.PayloadTooLargeException;
 import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.security.AccessTokenService;
 import com.example.raisetime.security.AuthTokenIssuer;
@@ -249,5 +250,16 @@ class UserControllerTest {
                         .cookie(loggedIn))
                 .andExpect(status().isForbidden());
         verify(userService, never()).updateProfile(anyLong(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void updateProfile_tooLargeAvatar_returns413WithAvatarMessage() throws Exception {
+        when(userService.updateProfile(eq(1L), anyString(), anyString(), any(), any(), anyBoolean()))
+                .thenThrow(new PayloadTooLargeException("プロフィール画像は2MBまでです"));
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/users/me").param("name", "山田").param("username", "taro_dev")
+                        .with(csrf()).cookie(loggedIn))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.message").value("プロフィール画像は2MBまでです"));
     }
 }
