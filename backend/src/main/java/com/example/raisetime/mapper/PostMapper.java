@@ -24,6 +24,11 @@ public interface PostMapper {
     List<PostWithAuthor> findTimeline(@Param("viewerId") Long viewerId, @Param("before") Long before,
                                       @Param("limit") int limit);
 
+    // ユーザーページ（F-08）：userId の人の投稿を、新しい順に limit 件。before があれば、それより古いもの。
+    // いいね数・コメント数・viewerId がいいね済みかも合わせて取る
+    List<PostWithAuthor> findByUser(@Param("userId") Long userId, @Param("viewerId") Long viewerId,
+                                    @Param("before") Long before, @Param("limit") int limit);
+
     // タイムラインに、after より新しい（id が大きい）投稿があるか。新しい投稿のお知らせ（F-03）に使う
     boolean existsTimelineNewerThan(@Param("viewerId") Long viewerId, @Param("after") long after);
 

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.raisetime.mapper.FollowMapper">
+
+    <!--
+        フォロー済みなら何もしない（UNIQUE(follower_id, followee_id) にぶつかったら無視する）。
+        連打や同時に押されたときも、エラーにならず1件だけになる
+    -->
+    <insert id="insertIgnore">
+        INSERT INTO follows (follower_id, followee_id)
+        VALUES (#{followerId}, #{followeeId})
+        ON CONFLICT (follower_id, followee_id) DO NOTHING
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM follows
+        WHERE follower_id = #{followerId} AND followee_id = #{followeeId}
+    </delete>
+
+    <select id="countFollowers" resultType="long">
+        SELECT count(*) FROM follows WHERE followee_id = #{userId}
+    </select>
+
+</mapper>

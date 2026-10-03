@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-11 投稿削除
+// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-08 ユーザーの投稿一覧 / F-11 投稿削除
 @Service
 public class PostService {
 
@@ -139,7 +139,17 @@ public class PostService {
     @Transactional(readOnly = true)
     public TimelineResponse timeline(Long viewerId, Long before) {
         // 1件多く取り、次のページがあるかを判定する
-        List<PostWithAuthor> rows = postMapper.findTimeline(viewerId, before, PAGE_SIZE + 1);
+        return toPage(postMapper.findTimeline(viewerId, before, PAGE_SIZE + 1), viewerId);
+    }
+
+    // ユーザーページ（F-08）の投稿一覧。並び・ページの分け方はタイムラインと同じ
+    @Transactional(readOnly = true)
+    public TimelineResponse userPosts(Long userId, Long viewerId, Long before) {
+        return toPage(postMapper.findByUser(userId, viewerId, before, PAGE_SIZE + 1), viewerId);
+    }
+
+    // PAGE_SIZE + 1 件取った結果から、20件分のレスポンスと次のカーソルを作る
+    private TimelineResponse toPage(List<PostWithAuthor> rows, Long viewerId) {
         boolean hasMore = rows.size() > PAGE_SIZE;
         List<PostWithAuthor> page = hasMore ? rows.subList(0, PAGE_SIZE) : rows;
 
