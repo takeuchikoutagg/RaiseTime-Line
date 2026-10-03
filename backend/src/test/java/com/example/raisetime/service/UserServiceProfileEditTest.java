@@ -24,6 +24,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +42,9 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class UserServiceProfileEditTest {
 
-    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0, 0, 0x0D};
+    // 画像として最小限の正しい形（PNG：目印＋IEND チャンク、JPEG：SOI＋EOI）。サーバーはメタデータを取り除くときに中身を読む
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n',
+        0, 0, 0, 0, 'I', 'E', 'N', 'D', (byte) 0xAE, 0x42, 0x60, (byte) 0x82};
 
     @Mock
     private UserMapper userMapper;
@@ -266,11 +270,38 @@ class UserServiceProfileEditTest {
     @Test
     void update_avatarJustUnder2MB_isAccepted() {
         currentUser(null);
+        // JPEG は EOI のあとのデータを画像データとしてそのまま残すので、2MB ちょうどの大きさを作りやすい
         byte[] justUnder = new byte[2 * 1024 * 1024];
-        System.arraycopy(PNG, 0, justUnder, 0, PNG.length);
+        justUnder[0] = (byte) 0xFF;
+        justUnder[1] = (byte) 0xD8;
+        justUnder[2] = (byte) 0xFF;
+        justUnder[3] = (byte) 0xD9;
 
         userService.updateProfile(1L, "山田太郎", "taro_dev", "", avatar(justUnder), false);
 
-        verify(imageStorage).put(anyString(), any(), eq("image/png"));
+        verify(imageStorage).put(anyString(), any(), eq("image/jpeg"));
+    }
+
+    @Test
+    void update_avatarGpsMetadata_isRemovedBeforeUpload() {
+        currentUser(null);
+        // SOI ＋ APP1（EXIF に位置情報）＋ EOI
+        byte[] exif = "Exif\0\0GPSLatitude".getBytes(StandardCharsets.ISO_8859_1);
+        byte[] jpeg = new byte[4 + 4 + exif.length];
+        jpeg[0] = (byte) 0xFF;
+        jpeg[1] = (byte) 0xD8;
+        jpeg[2] = (byte) 0xFF;
+        jpeg[3] = (byte) 0xE1;
+        jpeg[4] = 0;
+        jpeg[5] = (byte) (exif.length + 2);
+        System.arraycopy(exif, 0, jpeg, 6, exif.length);
+        jpeg[6 + exif.length] = (byte) 0xFF;
+        jpeg[7 + exif.length] = (byte) 0xD9;
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", "", avatar(jpeg), false);
+
+        ArgumentCaptor<byte[]> uploaded = ArgumentCaptor.forClass(byte[].class);
+        verify(imageStorage).put(anyString(), uploaded.capture(), eq("image/jpeg"));
+        assertThat(uploaded.getValue()).containsExactly((byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xD9);
     }
 }

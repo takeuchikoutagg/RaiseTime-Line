@@ -13,6 +13,7 @@ import com.example.raisetime.exception.StorageException;
 import com.example.raisetime.mapper.PostImageMapper;
 import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.storage.ImageMetadataStripper;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
 import com.example.raisetime.validation.LineBreaks;
@@ -127,9 +128,19 @@ public class PostService {
             // 拡張子や Content-Type ではなく、ファイルの中身で判定する（拡張子を書き換えただけのファイルを弾く）
             ImageType type = ImageType.detect(data)
                     .orElseThrow(() -> new InvalidInputException("images", IMAGE_TYPE_MESSAGE));
-            images.add(new ValidatedImage(data, type));
+            // 撮影場所（GPS）などのメタデータを取り除いてから保存する（誰でもダウンロードできるため）
+            images.add(new ValidatedImage(stripMetadata(data, type, "images"), type));
         }
         return images;
+    }
+
+    // 画像から撮影場所などのメタデータを取り除く。中身が壊れていて読み取れなければ「画像を選んでください」の 400
+    static byte[] stripMetadata(byte[] data, ImageType type, String field) {
+        try {
+            return ImageMetadataStripper.strip(data, type);
+        } catch (ImageMetadataStripper.InvalidImageException e) {
+            throw new InvalidInputException(field, IMAGE_TYPE_MESSAGE);
+        }
     }
 
     private static byte[] readBytes(MultipartFile file) {

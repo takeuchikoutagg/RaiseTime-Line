@@ -60,8 +60,10 @@ import static org.mockito.Mockito.when;
 class PostServiceTest {
 
     private static final AuthUser TARO = new AuthUser(1L, "taro_dev", "山田太郎", null);
-    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0, 0, 0x0D};
-    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0x10};
+    // 画像として最小限の正しい形（PNG：目印＋IEND チャンク、JPEG：SOI＋EOI）。サーバーはメタデータを取り除くときに中身を読む
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n',
+        0, 0, 0, 0, 'I', 'E', 'N', 'D', (byte) 0xAE, 0x42, 0x60, (byte) 0x82};
+    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xD9};
 
     @Mock
     private PostMapper postMapper;

@@ -158,10 +158,12 @@ public class UserService {
         // 拡張子や Content-Type ではなく、ファイルの中身で判定する（投稿の画像と同じ）
         ImageType type = ImageType.detect(data)
                 .orElseThrow(() -> new InvalidInputException("avatar", PostService.IMAGE_TYPE_MESSAGE));
+        // 撮影場所（GPS）などのメタデータを取り除いてから保存する（誰でもダウンロードできるため）
+        byte[] stripped = PostService.stripMetadata(data, type, "avatar");
         // キーには推測されにくい UUID を使い、元のファイル名は使わない
         String key = "avatars/%d/%s.%s".formatted(userId, UUID.randomUUID(), type.extension());
         try {
-            imageStorage.put(key, data, type.contentType());
+            imageStorage.put(key, stripped, type.contentType());
         } catch (RuntimeException e) {
             throw new StorageException("プロフィール画像のアップロードに失敗しました: " + key, e);
         }
