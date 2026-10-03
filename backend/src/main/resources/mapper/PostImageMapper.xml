@@ -17,4 +17,12 @@
         ORDER BY post_id, position
     </select>
 
+    <!--
+        編集（F-10）で表示順を振り直すときに使う。UNIQUE(post_id, position) があるため、
+        1件ずつ position を更新すると途中で重なってしまう。いったん全部消して、残す画像と追加する画像を入れ直す
+    -->
+    <delete id="deleteByPostId">
+        DELETE FROM post_images WHERE post_id = #{postId}
+    </delete>
+
 </mapper>

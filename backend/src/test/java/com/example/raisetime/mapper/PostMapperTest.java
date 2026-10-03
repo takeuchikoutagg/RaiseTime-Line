@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 // 投稿（PostMapper）と投稿画像（PostImageMapper）の SQL を、Docker の PostgreSQL で実際に実行して確認する。
 // テストごとにロールバックされる
@@ -245,5 +246,40 @@ class PostMapperTest {
                 post.getId())).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM comments WHERE post_id = ?", Long.class,
                 post.getId())).isZero();
+    }
+
+    // ---------- 投稿編集（F-10） ----------
+
+    @Test
+    void updateBody_changesBodyAndEditedAt_butNotCreatedAt() {
+        Post post = insertPost(taro, "編集前");
+        Post before = postMapper.findById(post.getId());
+
+        assertThat(postMapper.updateBody(post.getId(), "編集後😀")).isEqualTo(1);
+
+        Post after = postMapper.findByIdForUpdate(post.getId());
+        assertThat(after.getBody()).isEqualTo("編集後😀");
+        assertThat(after.getEditedAt()).isNotNull();
+        // 投稿日時は変えない（タイムラインの並び順が変わらない）
+        assertThat(after.getCreatedAt()).isEqualTo(before.getCreatedAt());
+        assertThat(postMapper.findByIdForUpdate(-1L)).isNull();
+    }
+
+    @Test
+    void deleteByPostId_removesOnlyThatPostsImages_andPositionsCanBeReused() {
+        Post a = insertPost(taro, "a");
+        Post b = insertPost(taro, "b");
+        postImageMapper.insert(new PostImage(a.getId(), "posts/a/1.png", 1));
+        postImageMapper.insert(new PostImage(a.getId(), "posts/a/2.png", 2));
+        postImageMapper.insert(new PostImage(b.getId(), "posts/b/1.png", 1));
+
+        assertThat(postImageMapper.deleteByPostId(a.getId())).isEqualTo(2);
+        // 消したあとは、同じキー・同じ表示順で入れ直せる（編集で表示順を振り直すとき）
+        postImageMapper.insert(new PostImage(a.getId(), "posts/a/2.png", 1));
+
+        assertThat(postImageMapper.findByPostIds(List.of(a.getId(), b.getId())))
+                .extracting(PostImage::getS3Key, PostImage::getPosition)
+                .containsExactly(tuple("posts/a/2.png", 1),
+                        tuple("posts/b/1.png", 1));
     }
 }

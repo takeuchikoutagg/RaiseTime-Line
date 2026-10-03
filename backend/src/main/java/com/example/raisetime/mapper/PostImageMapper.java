@@ -13,4 +13,7 @@ public interface PostImageMapper {
 
     // 複数の投稿の画像をまとめて取る（投稿ごとに1回ずつ取る N+1 問題を避ける）。投稿 id・表示順の順に並ぶ
     List<PostImage> findByPostIds(List<Long> postIds);
+
+    // 投稿の画像の行をすべて消す（編集で表示順を振り直すとき、いったん消して入れ直す）
+    int deleteByPostId(Long postId);
 }

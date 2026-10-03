@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -245,6 +246,71 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.message").value("投稿が見つかりません"));
         mockMvc.perform(get("/api/posts/abc").cookie(loggedIn))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---------- 投稿編集 ----------
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void update_multipartPatch_returns200_andPassesBodyKeepIdsAndImages() throws Exception {
+        when(postService.update(eq(10L), any(AuthUser.class), eq("編集後"), any(), any())).thenReturn(SAMPLE);
+        MockMultipartFile image = new MockMultipartFile("images", "a.png", "image/png", new byte[] {1, 2, 3});
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").file(image)
+                        .param("body", "編集後").param("keepImageIds", "100", "101")
+                        .with(csrf()).cookie(loggedIn))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10));
+
+        ArgumentCaptor<List<Long>> keep = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<MultipartFile>> files = ArgumentCaptor.forClass(List.class);
+        verify(postService).update(eq(10L), any(AuthUser.class), eq("編集後"), keep.capture(), files.capture());
+        assertThat(keep.getValue()).containsExactly(100L, 101L);
+        assertThat(files.getValue()).hasSize(1);
+    }
+
+    @Test
+    void update_withoutKeepIdsAndImages_passesNull() throws Exception {
+        when(postService.update(eq(10L), any(AuthUser.class), eq("編集後"), isNull(), isNull())).thenReturn(SAMPLE);
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").param("body", "編集後").with(csrf()).cookie(loggedIn))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void update_othersPost_returns403_andMissingPost_returns404() throws Exception {
+        when(postService.update(eq(10L), any(AuthUser.class), anyString(), any(), any()))
+                .thenThrow(new ForbiddenException("この投稿は編集できません"));
+        when(postService.update(eq(11L), any(AuthUser.class), anyString(), any(), any()))
+                .thenThrow(new NotFoundException("投稿が見つかりません"));
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").param("body", "x").with(csrf()).cookie(loggedIn))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("この投稿は編集できません"));
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/11").param("body", "x").with(csrf()).cookie(loggedIn))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void update_invalidInput_returns400_andNonNumericKeepId_returns400() throws Exception {
+        when(postService.update(eq(10L), any(AuthUser.class), eq(""), any(), any()))
+                .thenThrow(new InvalidInputException("body", "本文は1〜280文字で入力してください"));
+
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").param("body", "").with(csrf()).cookie(loggedIn))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("body"));
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").param("body", "x").param("keepImageIds", "abc")
+                        .with(csrf()).cookie(loggedIn))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void update_withoutLogin_returns401_andWithoutCsrf_returns403() throws Exception {
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").param("body", "x").with(csrf()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(multipart(HttpMethod.PATCH, "/api/posts/10").param("body", "x").cookie(loggedIn))
+                .andExpect(status().isForbidden());
+        verify(postService, never()).update(anyLong(), any(), anyString(), any(), any());
     }
 
     // ---------- 投稿削除 ----------

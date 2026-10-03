@@ -29,10 +29,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-08 ユーザーの投稿一覧 / F-11 投稿削除
+// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-08 ユーザーの投稿一覧 / F-10 投稿編集 / F-11 投稿削除
 @Service
 public class PostService {
 
@@ -49,6 +50,7 @@ public class PostService {
     static final String IMAGE_TOO_LARGE = "画像は1枚5MBまでです";
     static final String POST_NOT_FOUND = "投稿が見つかりません";
     static final String CANNOT_DELETE = "この投稿は削除できません";
+    static final String CANNOT_EDIT = "この投稿は編集できません";
 
     private final PostMapper postMapper;
     private final PostImageMapper postImageMapper;
@@ -68,28 +70,15 @@ public class PostService {
     @Transactional
     public PostResponse create(AuthUser author, String body, List<MultipartFile> files) {
         validateBody(body);
-        List<ValidatedImage> images = validateImages(files);
+        List<ValidatedImage> images = validateImages(files, 0);
 
         Post post = new Post(author.getId(), body);
         postMapper.insert(post);
 
-        // 画像は S3 に置き、DB にはキーだけを保存する。
-        // 途中で失敗して DB がロールバックされたら、アップロード済みの画像を S3 から消す（S3 にゴミが残らないように）
-        List<String> uploadedKeys = new ArrayList<>();
-        afterRollback(() -> uploadedKeys.forEach(this::deleteQuietly));
-
         List<PostImage> saved = new ArrayList<>();
-        for (int i = 0; i < images.size(); i++) {
-            ValidatedImage image = images.get(i);
-            // キーには推測されにくい UUID を使い、元のファイル名は使わない
-            String key = "posts/%d/%s.%s".formatted(post.getId(), UUID.randomUUID(), image.type().extension());
-            try {
-                imageStorage.put(key, image.data(), image.type().contentType());
-            } catch (RuntimeException e) {
-                throw new StorageException("画像のアップロードに失敗しました: " + key, e);
-            }
-            uploadedKeys.add(key);
-            PostImage postImage = new PostImage(post.getId(), key, i + 1);
+        List<String> keys = upload(post.getId(), images);
+        for (int i = 0; i < keys.size(); i++) {
+            PostImage postImage = new PostImage(post.getId(), keys.get(i), i + 1);
             postImageMapper.insert(postImage);
             saved.add(postImage);
         }
@@ -105,11 +94,30 @@ public class PostService {
         }
     }
 
-    private static List<ValidatedImage> validateImages(List<MultipartFile> files) {
+    // 画像を S3 に置き、キーを返す（DB にはキーだけを保存する）。
+    // 途中で失敗して DB がロールバックされたら、アップロード済みの画像を S3 から消す（S3 にゴミが残らないように）
+    private List<String> upload(Long postId, List<ValidatedImage> images) {
+        List<String> uploadedKeys = new ArrayList<>();
+        afterRollback(() -> uploadedKeys.forEach(this::deleteQuietly));
+        for (ValidatedImage image : images) {
+            // キーには推測されにくい UUID を使い、元のファイル名は使わない
+            String key = "posts/%d/%s.%s".formatted(postId, UUID.randomUUID(), image.type().extension());
+            try {
+                imageStorage.put(key, image.data(), image.type().contentType());
+            } catch (RuntimeException e) {
+                throw new StorageException("画像のアップロードに失敗しました: " + key, e);
+            }
+            uploadedKeys.add(key);
+        }
+        return uploadedKeys;
+    }
+
+    // existingCount：すでに付いていて残す画像の枚数（編集のとき）。合わせて4枚まで
+    private static List<ValidatedImage> validateImages(List<MultipartFile> files, int existingCount) {
         // 画像を選ばずに送ると、空のファイルが届くことがあるので除く
         List<MultipartFile> nonEmpty = files == null ? List.of()
                 : files.stream().filter(file -> file != null && !file.isEmpty()).toList();
-        if (nonEmpty.size() > MAX_IMAGES) {
+        if (existingCount + nonEmpty.size() > MAX_IMAGES) {
             throw new InvalidInputException("images", TOO_MANY_IMAGES);
         }
         List<ValidatedImage> images = new ArrayList<>();
@@ -180,6 +188,55 @@ public class PostService {
             throw new NotFoundException(POST_NOT_FOUND);
         }
         return toResponse(post, postImageMapper.findByPostIds(List.of(postId)), viewerId);
+    }
+
+    // ---------- F-10 投稿編集 ----------
+
+    // 本文と画像を変える。投稿日時（created_at）は変えないので、タイムラインの並び順も変わらない。いいね・コメントはそのまま。
+    // keepImageIds：今の画像のうち残すもの（送った順に並べる）。送らなかった画像は外す。files：追加する画像
+    @Transactional
+    public PostResponse update(Long postId, AuthUser editor, String body, List<Long> keepImageIds,
+                               List<MultipartFile> files) {
+        // 同じ投稿への編集・削除が同時に走らないよう、行をロックして取る
+        Post post = postMapper.findByIdForUpdate(postId);
+        if (post == null) {
+            throw new NotFoundException(POST_NOT_FOUND);
+        }
+        // 投稿者本人だけが編集できる（画面でメニューを隠すだけでなく、API でも必ず確認する）
+        if (!post.getUserId().equals(editor.getId())) {
+            throw new ForbiddenException(CANNOT_EDIT);
+        }
+        validateBody(body);
+
+        // 残す画像：この投稿の画像だけを、送られた順に（重複や、ほかの投稿の画像 id は無視する）
+        List<PostImage> current = postImageMapper.findByPostIds(List.of(postId));
+        Map<Long, PostImage> currentById = current.stream()
+                .collect(Collectors.toMap(PostImage::getId, image -> image));
+        List<PostImage> kept = keepImageIds == null ? List.of()
+                : keepImageIds.stream().distinct().map(currentById::get).filter(Objects::nonNull).toList();
+        List<ValidatedImage> added = validateImages(files, kept.size());
+        List<String> removedKeys = current.stream()
+                .filter(image -> !kept.contains(image))
+                .map(PostImage::getS3Key)
+                .toList();
+
+        List<String> addedKeys = upload(postId, added);
+        postMapper.updateBody(postId, body);
+
+        // 表示順を「残す画像（送った順）→ 追加する画像」で 1〜4 に振り直す。
+        // UNIQUE(post_id, position) に当たらないよう、いったん全部消して入れ直す（残す画像は同じ S3 のキーを使う）
+        postImageMapper.deleteByPostId(postId);
+        int position = 1;
+        for (PostImage image : kept) {
+            postImageMapper.insert(new PostImage(postId, image.getS3Key(), position++));
+        }
+        for (String key : addedKeys) {
+            postImageMapper.insert(new PostImage(postId, key, position++));
+        }
+
+        // 外した画像は、DB の更新が確定してから S3 から消す。消せなくても編集は成功扱いにし、ログに残す
+        afterCommit(() -> removedKeys.forEach(this::deleteQuietly));
+        return findById(postId, editor.getId());
     }
 
     // ---------- F-11 投稿削除 ----------
