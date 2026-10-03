@@ -9,6 +9,8 @@ import com.example.raisetime.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
+
 // F-08 ユーザーページ。フォローしていない人のページも見られる
 @Service
 public class UserService {
@@ -23,9 +25,14 @@ public class UserService {
         this.postService = postService;
     }
 
+    // @ユーザーID は小文字だけ（F-01）。URL を大文字で打っても見つかるよう、小文字にそろえてから探す
+    static String normalize(String username) {
+        return username.toLowerCase(Locale.ROOT);
+    }
+
     @Transactional(readOnly = true)
     public UserProfileResponse profile(String username, Long viewerId) {
-        UserProfile profile = userMapper.findProfile(username, viewerId);
+        UserProfile profile = userMapper.findProfile(normalize(username), viewerId);
         if (profile == null) {
             throw new NotFoundException(USER_NOT_FOUND);
         }
@@ -40,7 +47,7 @@ public class UserService {
     }
 
     User requireUser(String username) {
-        User user = userMapper.findByUsername(username);
+        User user = userMapper.findByUsername(normalize(username));
         if (user == null) {
             throw new NotFoundException(USER_NOT_FOUND);
         }

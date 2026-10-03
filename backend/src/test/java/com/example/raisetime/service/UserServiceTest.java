@@ -84,4 +84,16 @@ class UserServiceTest {
                 .isInstanceOf(NotFoundException.class);
         verify(postService, never()).userPosts(anyLong(), anyLong(), any());
     }
+
+    @Test
+    void uppercaseUsernameInUrl_isLookedUpAsLowercase() {
+        when(userMapper.findProfile("hanako", 1L)).thenReturn(profile(2L));
+        User hanako = new User("hanako", "佐藤花子", "hanako@example.com", "hash");
+        hanako.setId(2L);
+        when(userMapper.findByUsername("hanako")).thenReturn(hanako);
+
+        assertThat(userService.profile("Hanako", 1L).username()).isEqualTo("hanako");
+        userService.posts("HANAKO", 1L, null);
+        verify(postService).userPosts(2L, 1L, null);
+    }
 }
