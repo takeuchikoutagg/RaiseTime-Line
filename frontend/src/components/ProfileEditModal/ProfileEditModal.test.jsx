@@ -86,6 +86,18 @@ describe('ProfileEditModal', () => {
     expect(onSaved).toHaveBeenCalledWith(saved)
   })
 
+  it('名前にタブなどの制御文字があれば送らない（貼り付けたときなど）', async () => {
+    const { user } = setup()
+
+    await user.clear(screen.getByLabelText(/^名前/))
+    await user.click(screen.getByLabelText(/^名前/))
+    await user.paste('山田\t太郎')
+    await user.click(screen.getByRole('button', { name: '保存する' }))
+
+    expect(updateProfile).not.toHaveBeenCalled()
+    expect(screen.getByText('名前は1〜50文字で入力してください')).toBeInTheDocument()
+  })
+
   it('入力が正しくなければ送らず、項目の下にメッセージを出す', async () => {
     const { user } = setup()
 

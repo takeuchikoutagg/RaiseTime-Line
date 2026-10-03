@@ -1,4 +1,4 @@
-import { countChars, hasVisibleText } from '../utils/text.js'
+import { countChars, hasControlCharacter, hasVisibleText } from '../utils/text.js'
 
 // プロフィール編集の入力チェック。バックエンド（UserService）と同じルール・同じメッセージにする
 // （docs/機能定義書/F-12_プロフィール編集.md）
@@ -15,7 +15,8 @@ const USERNAME_PATTERN = /^[a-z0-9_]{3,15}$/
 export function validateProfile({ name, username, bio }) {
   const errors = {}
   const trimmedName = name.trim()
-  if (!hasVisibleText(trimmedName) || countChars(trimmedName) > MAX_NAME_LENGTH) {
+  // 名前は1行で表示するので、タブなどの制御文字は使えない（新規登録と同じ）
+  if (!hasVisibleText(trimmedName) || countChars(trimmedName) > MAX_NAME_LENGTH || hasControlCharacter(trimmedName)) {
     errors.name = NAME_MESSAGE
   }
   if (!USERNAME_PATTERN.test(username)) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countChars, hasVisibleText } from './text.js'
+import { countChars, hasControlCharacter, hasVisibleText } from './text.js'
 
 describe('countChars', () => {
   it('絵文字も1文字と数える', () => {
@@ -27,5 +27,14 @@ describe('hasVisibleText', () => {
     expect(hasVisibleText('  ')).toBe(false)
     expect(hasVisibleText('​‌‍⁠﻿')).toBe(false)
     expect(hasVisibleText(' ​  ')).toBe(false)
+  })
+})
+
+describe('hasControlCharacter', () => {
+  it('改行・タブ・ベル音などの制御文字を含むか（バックエンドと同じ）', () => {
+    expect(hasControlCharacter('山田\t太郎')).toBe(true)
+    expect(hasControlCharacter('山田\n太郎')).toBe(true)
+    expect(hasControlCharacter('ベル\u0007')).toBe(true)
+    expect(hasControlCharacter('山田 太郎😀')).toBe(false)
   })
 })

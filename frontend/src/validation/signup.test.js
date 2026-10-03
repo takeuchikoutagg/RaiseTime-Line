@@ -25,6 +25,8 @@ describe('validateSignup', () => {
     expect(validateSignup({ ...valid, name: '   ' })).toHaveProperty('name')
     expect(validateSignup({ ...valid, name: 'あ'.repeat(51) })).toHaveProperty('name')
     expect(validateSignup({ ...valid, name: '😀'.repeat(50) })).toEqual({})
+    // 名前は1行で表示するので、タブなどの制御文字はエラー
+    expect(validateSignup({ ...valid, name: '山田\t太郎' })).toHaveProperty('name')
   })
 
   it('@ユーザーID：3〜15文字の半角英小文字・数字・_ だけ', () => {

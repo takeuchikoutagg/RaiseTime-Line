@@ -1,4 +1,4 @@
-import { countChars } from '../utils/text.js'
+import { countChars, hasControlCharacter } from '../utils/text.js'
 
 // 新規登録の入力チェック。バックエンド（SignupRequest）と同じルール・同じメッセージにする
 // （docs/機能定義書/F-01_新規登録.md）
@@ -19,7 +19,8 @@ function utf8Bytes(value) {
 export function validateSignup({ name, username, email, password, passwordConfirm }) {
   const errors = {}
   const nameLength = countChars(name.trim())
-  if (nameLength < 1 || countChars(name) > 50) {
+  // 名前は1行で表示するので、タブなどの制御文字は使えない（貼り付けると入ることがある）
+  if (nameLength < 1 || countChars(name) > 50 || hasControlCharacter(name.trim())) {
     errors.name = '名前は1〜50文字で入力してください'
   }
   if (!USERNAME_PATTERN.test(username)) {
