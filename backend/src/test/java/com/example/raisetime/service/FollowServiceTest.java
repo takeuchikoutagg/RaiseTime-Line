@@ -98,4 +98,16 @@ class FollowServiceTest {
         assertThatThrownBy(() -> followService.follow("hanako", 1L))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void uppercaseUsername_isLookedUpAsLowercase_andSelfIsStillRejected() {
+        userExists("hanako", 2L);
+        userExists("taro_dev", 1L);
+        when(followMapper.countFollowers(2L)).thenReturn(1L);
+
+        assertThat(followService.follow("HaNaKo", 1L)).isEqualTo(new FollowResponse(true, 1L));
+        verify(followMapper).insertIgnore(1L, 2L);
+        // 大文字にしても、自分自身は自分自身
+        assertThatThrownBy(() -> followService.follow("TARO_DEV", 1L)).isInstanceOf(BadRequestException.class);
+    }
 }

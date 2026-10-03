@@ -45,7 +45,7 @@ public class FollowService {
     }
 
     private User requireOtherUser(String username, Long viewerId) {
-        User target = userMapper.findByUsername(username);
+        User target = userMapper.findByUsername(UserService.normalize(username));
         if (target == null) {
             throw new NotFoundException(UserService.USER_NOT_FOUND);
         }
