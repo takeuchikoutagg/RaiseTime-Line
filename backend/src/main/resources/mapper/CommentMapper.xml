@@ -8,14 +8,27 @@
         VALUES (#{postId}, #{userId}, #{body})
     </insert>
 
+    <sql id="commentWithAuthorColumns">
+        c.id, c.post_id, c.user_id, c.body, c.created_at, c.updated_at,
+        u.username AS author_username,
+        u.name AS author_name,
+        u.avatar_key AS author_avatar_key
+    </sql>
+
+    <!-- コメント1件を、コメントした人の名前・プロフィール画像つきで取る（作成したコメントを返すときに使う） -->
+    <select id="findWithAuthorById" resultType="com.example.raisetime.entity.CommentWithAuthor">
+        SELECT <include refid="commentWithAuthorColumns"/>
+        FROM comments c
+        JOIN users u ON u.id = c.user_id
+        WHERE c.id = #{id}
+    </select>
+
     <!--
         投稿詳細のコメント一覧（F-05）。会話の流れで読めるように古い順（id の小さい順）。
         続きは「この id より新しいもの」（after）で取る
     -->
     <select id="findByPostId" resultType="com.example.raisetime.entity.CommentWithAuthor">
-        SELECT c.id, c.post_id, c.user_id, c.body, c.created_at, c.updated_at,
-               u.username AS author_username,
-               u.name AS author_name
+        SELECT <include refid="commentWithAuthorColumns"/>
         FROM comments c
         JOIN users u ON u.id = c.user_id
         WHERE c.post_id = #{postId}

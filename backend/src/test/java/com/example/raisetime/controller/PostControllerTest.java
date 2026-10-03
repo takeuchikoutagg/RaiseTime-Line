@@ -53,7 +53,7 @@ class PostControllerTest {
 
     private static final AuthUser TARO = new AuthUser(1L, "taro_dev", "山田太郎", null);
     private static final PostResponse SAMPLE = new PostResponse(10L, "こんにちは", Instant.parse("2026-10-01T00:00:00Z"),
-            null, new PostResponse.Author("taro_dev", "山田太郎"),
+            null, new PostResponse.Author("taro_dev", "山田太郎", null),
             List.of(new PostResponse.Image(100L, "http://img/posts/10/a.png", 1)), 3, 1, false, true);
 
     @Autowired

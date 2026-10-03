@@ -20,8 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -75,16 +73,13 @@ public class PostService {
         Post post = new Post(author.getId(), body);
         postMapper.insert(post);
 
-        List<PostImage> saved = new ArrayList<>();
         List<String> keys = upload(post.getId(), images);
         for (int i = 0; i < keys.size(); i++) {
-            PostImage postImage = new PostImage(post.getId(), keys.get(i), i + 1);
-            postImageMapper.insert(postImage);
-            saved.add(postImage);
+            postImageMapper.insert(new PostImage(post.getId(), keys.get(i), i + 1));
         }
 
-        // 作ったばかりなので、いいね・コメントは0件
-        return toResponse(post, author.getUsername(), author.getName(), saved, 0, 0, false, author.getId());
+        // 投稿者の名前・プロフィール画像は DB の最新の値を使うため、保存した投稿を取り直して返す（いいね・コメントは0件）
+        return findById(post.getId(), author.getId());
     }
 
     private static void validateBody(String body) {
@@ -98,7 +93,7 @@ public class PostService {
     // 途中で失敗して DB がロールバックされたら、アップロード済みの画像を S3 から消す（S3 にゴミが残らないように）
     private List<String> upload(Long postId, List<ValidatedImage> images) {
         List<String> uploadedKeys = new ArrayList<>();
-        afterRollback(() -> uploadedKeys.forEach(this::deleteQuietly));
+        AfterTransaction.afterRollback(() -> uploadedKeys.forEach(this::deleteQuietly));
         for (ValidatedImage image : images) {
             // キーには推測されにくい UUID を使い、元のファイル名は使わない
             String key = "posts/%d/%s.%s".formatted(postId, UUID.randomUUID(), image.type().extension());
@@ -240,7 +235,7 @@ public class PostService {
         List<String> removedKeys = removed.stream().map(PostImage::getS3Key).toList();
 
         // 外した画像は、DB の更新が確定してから S3 から消す。消せなくても編集は成功扱いにし、ログに残す
-        afterCommit(() -> removedKeys.forEach(this::deleteQuietly));
+        AfterTransaction.afterCommit(() -> removedKeys.forEach(this::deleteQuietly));
         return findById(postId, editor.getId());
     }
 
@@ -263,25 +258,26 @@ public class PostService {
 
         // S3 の画像は、DB の削除が確定してから消す（先に消すと、DB の削除が失敗したときに画像だけ無くなるため）。
         // 消せなくても投稿の削除は成功扱いにし、ログに残す
-        afterCommit(() -> keys.forEach(this::deleteQuietly));
+        AfterTransaction.afterCommit(() -> keys.forEach(this::deleteQuietly));
     }
 
     // ---------- 共通 ----------
 
     private PostResponse toResponse(PostWithAuthor post, List<PostImage> images, Long viewerId) {
-        return toResponse(post, post.getAuthorUsername(), post.getAuthorName(), images, post.getLikeCount(),
-                post.getCommentCount(), post.isLikedByMe(), viewerId);
-    }
-
-    private PostResponse toResponse(Post post, String authorUsername, String authorName, List<PostImage> images,
-                                    long likeCount, long commentCount, boolean likedByMe, Long viewerId) {
         List<PostResponse.Image> imageResponses = images.stream()
                 .map(image -> new PostResponse.Image(image.getId(), imageStorage.publicUrl(image.getS3Key()),
                         image.getPosition()))
                 .toList();
-        return new PostResponse(post.getId(), post.getBody(), post.getCreatedAt(), post.getEditedAt(),
-                new PostResponse.Author(authorUsername, authorName), imageResponses, likeCount, commentCount,
-                likedByMe, post.getUserId().equals(viewerId));
+        PostResponse.Author author = new PostResponse.Author(post.getAuthorUsername(), post.getAuthorName(),
+                avatarUrl(post.getAuthorAvatarKey()));
+        return new PostResponse(post.getId(), post.getBody(), post.getCreatedAt(), post.getEditedAt(), author,
+                imageResponses, post.getLikeCount(), post.getCommentCount(), post.isLikedByMe(),
+                post.getUserId().equals(viewerId));
+    }
+
+    // プロフィール画像のキーから URL を作る。設定していなければ null
+    private String avatarUrl(String avatarKey) {
+        return avatarKey == null ? null : imageStorage.publicUrl(avatarKey);
     }
 
     private void deleteQuietly(String key) {
@@ -290,25 +286,5 @@ public class PostService {
         } catch (RuntimeException e) {
             log.warn("S3 の画像を消せませんでした（あとで手で消す必要があります）: {}", key, e);
         }
-    }
-
-    private static void afterCommit(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
-    }
-
-    private static void afterRollback(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    action.run();
-                }
-            }
-        });
     }
 }

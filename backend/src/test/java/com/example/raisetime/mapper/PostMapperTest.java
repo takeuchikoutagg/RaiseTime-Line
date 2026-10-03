@@ -314,4 +314,13 @@ class PostMapperTest {
         assertThat(postImageMapper.findByPostIds(List.of(post.getId()))).extracting(PostImage::getId)
                 .containsExactly(b.getId());
     }
+
+    @Test
+    void timelineAndDetail_includeAuthorAvatarKey() {
+        Post post = insertPost(taro, "アイコンつき");
+        jdbcTemplate.update("UPDATE users SET avatar_key = 'avatars/t/a.png' WHERE id = ?", taro);
+
+        assertThat(postMapper.findDetailById(post.getId(), taro).getAuthorAvatarKey()).isEqualTo("avatars/t/a.png");
+        assertThat(postMapper.findTimeline(taro, null, 20).getFirst().getAuthorAvatarKey()).isEqualTo("avatars/t/a.png");
+    }
 }

@@ -36,6 +36,7 @@
         p.id, p.user_id, p.body, p.edited_at, p.created_at, p.updated_at,
         u.username AS author_username,
         u.name AS author_name,
+        u.avatar_key AS author_avatar_key,
         (SELECT count(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
         (SELECT count(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
         EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = #{viewerId}) AS liked_by_me

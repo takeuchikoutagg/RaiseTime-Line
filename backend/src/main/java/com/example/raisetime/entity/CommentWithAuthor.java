@@ -5,6 +5,8 @@ public class CommentWithAuthor extends Comment {
 
     private String authorUsername;
     private String authorName;
+    // 投稿・コメントした人のプロフィール画像の S3 のキー。設定していなければ null
+    private String authorAvatarKey;
 
     public String getAuthorUsername() {
         return authorUsername;
@@ -20,5 +22,13 @@ public class CommentWithAuthor extends Comment {
 
     public void setAuthorName(String authorName) {
         this.authorName = authorName;
+    }
+
+    public String getAuthorAvatarKey() {
+        return authorAvatarKey;
+    }
+
+    public void setAuthorAvatarKey(String authorAvatarKey) {
+        this.authorAvatarKey = authorAvatarKey;
     }
 }

@@ -14,6 +14,9 @@ public interface CommentMapper {
     // 採番された id と、DB が入れた created_at は comment に入る
     void insert(Comment comment);
 
+    // コメント1件を、コメントした人の名前・プロフィール画像つきで取る。無ければ null
+    CommentWithAuthor findWithAuthorById(Long id);
+
     // 投稿のコメントを古い順（id の小さい順）に limit 件。after があれば、それより新しいもの
     List<CommentWithAuthor> findByPostId(@Param("postId") Long postId, @Param("after") Long after,
                                          @Param("limit") int limit);

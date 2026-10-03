@@ -22,7 +22,8 @@ public record PostResponse(
         boolean isMine
 ) {
 
-    public record Author(String username, String name) {
+    // avatarUrl：プロフィール画像の URL（F-12）。設定していなければ null（画面は名前の1文字目の丸を出す）
+    public record Author(String username, String name, String avatarUrl) {
     }
 
     public record Image(Long id, String url, int position) {

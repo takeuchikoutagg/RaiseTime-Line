@@ -77,4 +77,46 @@ class UserMapperTest {
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_users_username_format");
     }
+
+    // ---------- プロフィール編集（F-12） ----------
+
+    @Test
+    void updateProfile_changesNameUsernameBioAndAvatar_andFindProfileReturnsThem() {
+        User user = newUser("um_profile", "um_profile@example.com");
+        userMapper.insert(user);
+        assertThat(userMapper.findById(user.getId()).getBio()).isEmpty();
+        assertThat(userMapper.findById(user.getId()).getAvatarKey()).isNull();
+
+        assertThat(userMapper.updateProfile(user.getId(), "新しい名前", "um_renamed", "自己紹介😀", "avatars/x/a.png"))
+                .isEqualTo(1);
+
+        assertThat(userMapper.findByUsername("um_profile")).isNull();
+        User found = userMapper.findByUsername("um_renamed");
+        assertThat(found.getName()).isEqualTo("新しい名前");
+        assertThat(found.getBio()).isEqualTo("自己紹介😀");
+        assertThat(found.getAvatarKey()).isEqualTo("avatars/x/a.png");
+        assertThat(userMapper.findProfile("um_renamed", user.getId()).getBio()).isEqualTo("自己紹介😀");
+        assertThat(userMapper.findProfile("um_renamed", user.getId()).getAvatarKey()).isEqualTo("avatars/x/a.png");
+    }
+
+    @Test
+    void updateProfile_bioOver160_isRejectedByCheckConstraint() {
+        User user = newUser("um_bio", "um_bio@example.com");
+        userMapper.insert(user);
+
+        assertThatThrownBy(() -> userMapper.updateProfile(user.getId(), "名前", "um_bio", "😀".repeat(161), null))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_users_bio_length");
+    }
+
+    @Test
+    void updateProfile_usernameTaken_isRejectedByUniqueConstraint() {
+        User a = newUser("um_a", "um_a@example.com");
+        User b = newUser("um_b", "um_b@example.com");
+        userMapper.insert(a);
+        userMapper.insert(b);
+
+        assertThatThrownBy(() -> userMapper.updateProfile(b.getId(), "名前", "um_a", "", null))
+                .isInstanceOf(DuplicateKeyException.class);
+    }
 }
