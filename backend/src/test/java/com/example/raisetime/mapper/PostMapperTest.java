@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 // 投稿（PostMapper）と投稿画像（PostImageMapper）の SQL を、Docker の PostgreSQL で実際に実行して確認する。
 // テストごとにロールバックされる
@@ -245,5 +246,72 @@ class PostMapperTest {
                 post.getId())).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM comments WHERE post_id = ?", Long.class,
                 post.getId())).isZero();
+    }
+
+    // ---------- 投稿編集（F-10） ----------
+
+    @Test
+    void updateBody_changesBodyAndEditedAt_butNotCreatedAt() {
+        Post post = insertPost(taro, "編集前");
+        Post before = postMapper.findById(post.getId());
+
+        assertThat(postMapper.updateBody(post.getId(), "編集後😀")).isEqualTo(1);
+
+        Post after = postMapper.findByIdForUpdate(post.getId());
+        assertThat(after.getBody()).isEqualTo("編集後😀");
+        assertThat(after.getEditedAt()).isNotNull();
+        // 投稿日時は変えない（タイムラインの並び順が変わらない）
+        assertThat(after.getCreatedAt()).isEqualTo(before.getCreatedAt());
+        assertThat(postMapper.findByIdForUpdate(-1L)).isNull();
+    }
+
+    @Test
+    void swapPositions_withDeferredCheck_succeeds_andIdsStayTheSame() {
+        Post post = insertPost(taro, "入れ替え");
+        PostImage a = new PostImage(post.getId(), "posts/x/a.png", 1);
+        PostImage b = new PostImage(post.getId(), "posts/x/b.png", 2);
+        postImageMapper.insert(a);
+        postImageMapper.insert(b);
+
+        // 編集と同じく、重なりのチェックを遅らせてから1件ずつ入れ替える（途中で 1 が重なる）
+        postImageMapper.deferPositionCheck();
+        postImageMapper.updatePosition(b.getId(), 1);
+        postImageMapper.updatePosition(a.getId(), 2);
+        // コミット時と同じチェックをここで行う。最終的に重なっていなければエラーにならない
+        jdbcTemplate.execute("SET CONSTRAINTS uq_post_images_post_position IMMEDIATE");
+
+        assertThat(postImageMapper.findByPostIds(List.of(post.getId())))
+                .extracting(PostImage::getId, PostImage::getPosition)
+                .containsExactly(tuple(b.getId(), 1), tuple(a.getId(), 2));
+    }
+
+    @Test
+    void positionsStillOverlappingAtTheEnd_areRejected_evenWithDeferredCheck() {
+        Post post = insertPost(taro, "重なり");
+        PostImage a = new PostImage(post.getId(), "posts/y/a.png", 1);
+        PostImage b = new PostImage(post.getId(), "posts/y/b.png", 2);
+        postImageMapper.insert(a);
+        postImageMapper.insert(b);
+
+        postImageMapper.deferPositionCheck();
+        postImageMapper.updatePosition(b.getId(), 1);
+
+        assertThatThrownBy(() -> jdbcTemplate.execute("SET CONSTRAINTS uq_post_images_post_position IMMEDIATE"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("uq_post_images_post_position");
+    }
+
+    @Test
+    void deleteByIds_removesOnlyThoseImages() {
+        Post post = insertPost(taro, "外す");
+        PostImage a = new PostImage(post.getId(), "posts/z/a.png", 1);
+        PostImage b = new PostImage(post.getId(), "posts/z/b.png", 2);
+        postImageMapper.insert(a);
+        postImageMapper.insert(b);
+
+        assertThat(postImageMapper.deleteByIds(List.of(a.getId()))).isEqualTo(1);
+
+        assertThat(postImageMapper.findByPostIds(List.of(post.getId()))).extracting(PostImage::getId)
+                .containsExactly(b.getId());
     }
 }

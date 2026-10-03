@@ -14,6 +14,19 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findByIdForUpdate" resultType="com.example.raisetime.entity.Post">
+        SELECT id, user_id, body, edited_at, created_at, updated_at
+        FROM posts
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
+    <update id="updateBody">
+        UPDATE posts
+        SET body = #{body}, edited_at = now(), updated_at = now()
+        WHERE id = #{id}
+    </update>
+
     <!--
         タイムライン・投稿詳細で出す列。投稿者の名前と、いいね数・コメント数・見ている人（viewerId）がいいね済みか。
         件数は相関サブクエリで、1回の SQL の中で投稿ごとに数える（投稿ごとに SQL を投げ直す N+1 問題を避ける）。

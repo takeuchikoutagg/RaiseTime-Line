@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-11 投稿削除。すべてログインが必要
+// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-10 投稿編集 / F-11 投稿削除。すべてログインが必要
 @RestController
 public class PostController {
 
@@ -56,6 +57,16 @@ public class PostController {
     @GetMapping("/api/posts/{postId}")
     public PostResponse findById(@PathVariable Long postId, @AuthenticationPrincipal AuthUser me) {
         return postService.findById(postId, me.getId());
+    }
+
+    // 投稿の編集。multipart/form-data で、本文（body）・残す画像の id（keepImageIds、複数可）・追加する画像（images）を受け取る
+    @PatchMapping(path = "/api/posts/{postId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public PostResponse update(@PathVariable Long postId,
+                               @RequestParam("body") String body,
+                               @RequestParam(name = "keepImageIds", required = false) List<Long> keepImageIds,
+                               @RequestParam(name = "images", required = false) List<MultipartFile> images,
+                               @AuthenticationPrincipal AuthUser me) {
+        return postService.update(postId, me, body, keepImageIds, images);
     }
 
     @DeleteMapping("/api/posts/{postId}")

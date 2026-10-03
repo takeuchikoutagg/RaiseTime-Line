@@ -17,4 +17,24 @@
         ORDER BY post_id, position
     </select>
 
+    <delete id="deleteByIds">
+        DELETE FROM post_images
+        WHERE id IN
+        <foreach collection="list" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <update id="updatePosition">
+        UPDATE post_images SET position = #{position} WHERE id = #{id}
+    </update>
+
+    <!--
+        編集（F-10）で表示順を並べ替えるとき、1件ずつ更新すると途中で表示順が重なる（例：1番と2番の入れ替え）。
+        このトランザクションの間だけ、重なりのチェックをコミット時まで遅らせる（制約は V8 で DEFERRABLE にしてある）
+    -->
+    <update id="deferPositionCheck">
+        SET CONSTRAINTS uq_post_images_post_position DEFERRED
+    </update>
+
 </mapper>

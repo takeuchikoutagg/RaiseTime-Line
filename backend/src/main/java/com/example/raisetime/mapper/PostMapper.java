@@ -16,6 +16,12 @@ public interface PostMapper {
 
     Post findById(Long id);
 
+    // 編集（F-10）のために、投稿の行をロックして取る（同じ投稿への編集・削除が同時に走らないようにする）。無ければ null
+    Post findByIdForUpdate(Long id);
+
+    // 本文を変え、edited_at・updated_at を今の日時にする（created_at は変えない＝タイムラインの並び順は変わらない）
+    int updateBody(@Param("id") Long id, @Param("body") String body);
+
     // 投稿詳細（F-05）。投稿者の名前、いいね数・コメント数、viewerId がいいね済みかを合わせて取る。無ければ null
     PostWithAuthor findDetailById(@Param("postId") Long postId, @Param("viewerId") Long viewerId);
 
