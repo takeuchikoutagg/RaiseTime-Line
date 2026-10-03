@@ -46,12 +46,13 @@ export default function PostCard({ post, onDeleteRequest, onUpdate, detail = fal
         {detail && post.editedAt && <p className={styles.meta}>編集済み {formatDateTime(post.editedAt)}</p>}
         <div className={styles.actions}>
           <LikeButton post={post} onUpdate={onUpdate} />
+          {/* 読み上げソフトでも数が伝わるよう、名前に件数を入れる（「コメント 3件」） */}
           {detail ? (
-            <span className={styles.action} aria-label="コメント">
+            <span className={styles.action} aria-label={`コメント ${post.commentCount}件`}>
               <span aria-hidden="true">💬</span> {post.commentCount}
             </span>
           ) : (
-            <Link to={detailPath} className={styles.action} aria-label="コメント">
+            <Link to={detailPath} className={styles.action} aria-label={`コメント ${post.commentCount}件`}>
               <span aria-hidden="true">💬</span> {post.commentCount}
             </Link>
           )}
@@ -62,12 +63,21 @@ export default function PostCard({ post, onDeleteRequest, onUpdate, detail = fal
   )
 }
 
+// いいねの失敗メッセージを出しておく時間
+export const LIKE_ERROR_DURATION_MS = 3000
+
 // いいねボタン（docs/機能定義書/F-06_いいね.md）。押したらすぐ見た目と数を変え（楽観的更新）、
-// API の値で合わせ直す。失敗したら元に戻してメッセージを出す。通信中にもう一度押されても受け付けない
+// API の値で合わせ直す。失敗したら元に戻してメッセージを出す（3秒で消える）。通信中にもう一度押されても受け付けない
 function LikeButton({ post, onUpdate }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const liked = post.likedByMe
+
+  useEffect(() => {
+    if (!error) return undefined
+    const timer = setTimeout(() => setError(''), LIKE_ERROR_DURATION_MS)
+    return () => clearTimeout(timer)
+  }, [error])
 
   async function handleClick() {
     if (pending) return
@@ -91,7 +101,8 @@ function LikeButton({ post, onUpdate }) {
       <button
         type="button"
         className={`${styles.action} ${styles.like} ${liked ? styles.liked : ''}`}
-        aria-label="いいね"
+        // 読み上げソフトでも数が伝わるよう、名前に件数を入れる（「いいね 12件」）。いいね済みかは aria-pressed で伝わる
+        aria-label={`いいね ${post.likeCount}件`}
         aria-pressed={liked}
         onClick={handleClick}
       >

@@ -1,4 +1,4 @@
-import { countChars } from '../utils/text.js'
+import { countChars, hasVisibleText } from '../utils/text.js'
 
 // 投稿の入力チェック。バックエンド（PostService）と同じルール・同じメッセージにする（docs/機能定義書/F-04_投稿作成.md）
 
@@ -12,9 +12,9 @@ export const TOO_MANY_IMAGES = '画像は4枚まで添付できます'
 export const IMAGE_TYPE_MESSAGE = 'JPEG・PNG・GIF・WebP の画像を選んでください'
 export const IMAGE_TOO_LARGE = '画像は1枚5MBまでです'
 
-// 空白だけは不可。絵文字も1文字と数える
+// 空白・見えない文字（ゼロ幅スペースなど）だけは不可。絵文字も1文字と数える
 export function isValidBody(body) {
-  return body.trim() !== '' && countChars(body) <= MAX_BODY_LENGTH
+  return hasVisibleText(body) && countChars(body) <= MAX_BODY_LENGTH
 }
 
 // 選んだファイルを、すでに選んでいる枚数と合わせてチェックする。
