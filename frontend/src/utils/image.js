@@ -2,7 +2,8 @@
 // スマホで撮った写真（数MB・数千px）をそのまま送ると、保存先の容量も、表示するときの通信量も大きくなるため。
 // - 投稿の画像：長い辺を 1600px まで（タイムラインでは横幅 600px 程度で表示する）
 // - プロフィール画像：真ん中を正方形に切り抜いて 400×400px（アイコンは 36〜72px で表示する）
-// どちらも JPEG（画質 0.85）にする。透過 PNG の透明な部分は白にする（JPEG は透過できないため）
+// どちらも JPEG（画質 0.85）にする。透過 PNG の透明な部分は白にする（JPEG は透過できないため）。
+// 作り直した画像には、撮影場所（GPS）などの EXIF は入らない
 
 export const POST_IMAGE_MAX_SIDE = 1600
 export const AVATAR_SIZE = 400
@@ -70,15 +71,23 @@ function drawOnWhite(width, height, draw) {
   return canvas
 }
 
+// JPEG・WebP は、撮影場所（GPS）などの EXIF が入っていることがある。作り直すと消えるので、小さくても必ず作り直す
+// （サーバーでも保存する前に取り除く）。PNG・GIF に位置情報が入ることはほぼない
+export function mayContainLocation(file) {
+  return file.type === 'image/jpeg' || file.type === 'image/webp'
+}
+
 // 投稿の画像。アニメーション GIF は縮めると動かなくなるので、そのまま送る
 export async function resizeForPost(file) {
   if (file.type === 'image/gif') return file
   const img = await loadImage(file)
   const { width, height } = fitWithin(img.naturalWidth, img.naturalHeight, POST_IMAGE_MAX_SIDE)
-  if (width === img.naturalWidth && file.size <= KEEP_ORIGINAL_BYTES) return file
+  const locationRisk = mayContainLocation(file)
+  if (!locationRisk && width === img.naturalWidth && file.size <= KEEP_ORIGINAL_BYTES) return file
   const canvas = drawOnWhite(width, height, (ctx) => ctx.drawImage(img, 0, 0, width, height))
   const resized = await toJpegFile(canvas, file.name)
-  // 図やスクリーンショットのような画像は、JPEG にするとかえって大きくなることがある。そのときは元のファイルを送る
+  if (locationRisk) return resized
+  // 図やスクリーンショット（PNG）のような画像は、JPEG にするとかえって大きくなることがある。そのときは元のファイルを送る
   return smallerOf(file, resized)
 }
 

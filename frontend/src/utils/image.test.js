@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { AVATAR_SIZE, centerSquare, fitWithin, POST_IMAGE_MAX_SIDE, resizeForPost, smallerOf } from './image.js'
+import {
+  AVATAR_SIZE,
+  centerSquare,
+  fitWithin,
+  mayContainLocation,
+  POST_IMAGE_MAX_SIDE,
+  resizeForPost,
+  smallerOf,
+} from './image.js'
 
 describe('fitWithin（長い辺を上限に収める）', () => {
   it('大きな写真は、縦横比を保ったまま長い辺を上限にする', () => {
@@ -40,5 +48,16 @@ describe('smallerOf', () => {
 
     expect(smallerOf(png, biggerJpeg)).toBe(png)
     expect(smallerOf(png, smallerJpeg)).toBe(smallerJpeg)
+  })
+})
+
+describe('mayContainLocation（位置情報が入りうる形式か）', () => {
+  it('JPEG・WebP は位置情報（EXIF）が入りうるので、小さくても必ず作り直す対象', () => {
+    const file = (type) => new File([new Uint8Array(1)], 'x', { type })
+
+    expect(mayContainLocation(file('image/jpeg'))).toBe(true)
+    expect(mayContainLocation(file('image/webp'))).toBe(true)
+    expect(mayContainLocation(file('image/png'))).toBe(false)
+    expect(mayContainLocation(file('image/gif'))).toBe(false)
   })
 })
