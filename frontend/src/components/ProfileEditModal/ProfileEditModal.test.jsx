@@ -1,11 +1,14 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../api/client.js'
 import { updateProfile } from '../../api/users.js'
+import { resizeForAvatar } from '../../utils/image.js'
 import ProfileEditModal from './ProfileEditModal.jsx'
 
 vi.mock('../../api/users.js', () => ({ updateProfile: vi.fn() }))
+// jsdom では画像を読み込めないので、切り抜いて縮める処理は置き換える
+vi.mock('../../utils/image.js', () => ({ resizeForAvatar: vi.fn() }))
 
 const profile = {
   username: 'taro_dev',
@@ -30,6 +33,10 @@ describe('ProfileEditModal', () => {
       createObjectURL: vi.fn(() => `blob:avatar-${n++}`),
       revokeObjectURL: vi.fn(),
     }))
+    // 400×400px の JPEG に縮めた（ことにする）
+    vi.mocked(resizeForAvatar).mockImplementation(async (file) =>
+      new File([new Uint8Array(5)], file.name.replace(/\.[^.]*$/, '.jpg'), { type: 'image/jpeg' }),
+    )
   })
 
   afterEach(() => {
@@ -97,17 +104,31 @@ describe('ProfileEditModal', () => {
     expect(screen.getByLabelText(/^@ユーザーID/)).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('画像を変更すると、プレビューが変わり、選んだファイルを送る', async () => {
+  it('画像を変更すると、正方形に縮めた画像のプレビューになり、それを送る', async () => {
     vi.mocked(updateProfile).mockResolvedValue(profile)
     const { user } = setup()
+    const original = image('me.png')
 
-    await user.upload(screen.getByTestId('avatar-input'), image('me.png'))
+    await user.upload(screen.getByTestId('avatar-input'), original)
 
-    expect(document.querySelector('img')).toHaveAttribute('src', 'blob:avatar-0')
+    expect(resizeForAvatar).toHaveBeenCalledWith(original)
+    await waitFor(() => expect(document.querySelector('img')).toHaveAttribute('src', 'blob:avatar-0'))
     await user.click(screen.getByRole('button', { name: '保存する' }))
     const [payload] = vi.mocked(updateProfile).mock.calls[0]
-    expect(payload.avatar.name).toBe('me.png')
+    expect(payload.avatar.name).toBe('me.jpg')
+    expect(payload.avatar.type).toBe('image/jpeg')
     expect(payload.removeAvatar).toBe(false)
+  })
+
+  it('読み込めない（中身が画像でない）ファイルは使わず、メッセージを出す', async () => {
+    vi.mocked(resizeForAvatar).mockRejectedValueOnce(new Error('画像を読み込めませんでした'))
+    const { user } = setup()
+
+    await user.upload(screen.getByTestId('avatar-input'), image('fake.png'))
+
+    expect(await screen.findByText('JPEG・PNG・GIF・WebP の画像を選んでください')).toBeInTheDocument()
+    expect(document.querySelector('img')).toHaveAttribute('src', 'http://img/avatars/1/a.png')
+    expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled()
   })
 
   it('画像以外のファイルは選べない', async () => {

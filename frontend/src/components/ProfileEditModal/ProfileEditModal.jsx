@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { updateProfile } from '../../api/users.js'
+import { resizeForAvatar } from '../../utils/image.js'
 import { countChars } from '../../utils/text.js'
-import { ACCEPTED_IMAGE_TYPES, checkImages, IMAGE_TYPE_MESSAGE } from '../../validation/post.js'
+import { ACCEPTED_IMAGE_TYPES, IMAGE_TYPE_MESSAGE } from '../../validation/post.js'
 import { MAX_BIO_LENGTH, validateProfile } from '../../validation/profile.js'
 import Avatar from '../Avatar/Avatar.jsx'
 import { DISCARD_CONFIRM_MESSAGE } from '../ComposeModal/ComposeModal.jsx'
@@ -19,6 +20,8 @@ export default function ProfileEditModal({ profile, onClose, onSaved }) {
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  // 選んだ画像を縮めている間は保存できない
+  const [preparing, setPreparing] = useState(false)
   const fileInputId = useId()
   const idPrefix = useId()
 
@@ -44,17 +47,29 @@ export default function ProfileEditModal({ profile, onClose, onSaved }) {
     setErrors((current) => ({ ...current, [name]: undefined }))
   }
 
-  function handleFile(event) {
-    const { accepted, error } = checkImages([...event.target.files].slice(0, 1), 0)
+  // 選んだ画像は、送る前に真ん中を正方形に切り抜いて 400×400px に縮める（utils/image.js）。
+  // アイコンは小さく表示するだけなので、元の写真をそのまま送らない（サーバーの上限は2MB）
+  async function handleFile(event) {
+    const file = event.target.files[0]
     event.target.value = ''
-    if (accepted.length === 0) {
-      setErrors((current) => ({ ...current, avatar: error }))
+    if (!file) return
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setErrors((current) => ({ ...current, avatar: IMAGE_TYPE_MESSAGE }))
       return
     }
-    if (newAvatar) URL.revokeObjectURL(newAvatar.previewUrl)
-    setNewAvatar({ file: accepted[0], previewUrl: URL.createObjectURL(accepted[0]) })
-    setRemoveAvatar(false)
-    setErrors((current) => ({ ...current, avatar: undefined }))
+    setPreparing(true)
+    try {
+      const resized = await resizeForAvatar(file)
+      if (newAvatar) URL.revokeObjectURL(newAvatar.previewUrl)
+      setNewAvatar({ file: resized, previewUrl: URL.createObjectURL(resized) })
+      setRemoveAvatar(false)
+      setErrors((current) => ({ ...current, avatar: undefined }))
+    } catch {
+      // 画像として読み込めない（拡張子だけ画像の）ファイル
+      setErrors((current) => ({ ...current, avatar: IMAGE_TYPE_MESSAGE }))
+    } finally {
+      setPreparing(false)
+    }
   }
 
   function handleRemoveAvatar() {
@@ -119,25 +134,12 @@ export default function ProfileEditModal({ profile, onClose, onSaved }) {
     <Modal title="プロフィールを編集" onClose={handleClose}>
       <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <div className={styles.avatarRow}>
-          {/* 選んだ画像が表示できない（拡張子だけ画像の）ファイルなら外す。最終的な判定はサーバーが中身で行う */}
           <Avatar
             username={values.username || profile.username}
             name={values.name || profile.name}
             avatarUrl={avatarUrl}
             size="large"
           />
-          {newAvatar && (
-            <img
-              src={newAvatar.previewUrl}
-              alt=""
-              hidden
-              onError={() => {
-                URL.revokeObjectURL(newAvatar.previewUrl)
-                setNewAvatar(null)
-                setErrors((current) => ({ ...current, avatar: IMAGE_TYPE_MESSAGE }))
-              }}
-            />
-          )}
           <div className={styles.avatarButtons}>
             <label htmlFor={fileInputId} className={styles.secondary}>
               画像を変更
@@ -200,8 +202,8 @@ export default function ProfileEditModal({ profile, onClose, onSaved }) {
           {formError}
         </p>
         <div className={styles.actions}>
-          <button type="submit" className={styles.submit} disabled={!dirty || saving}>
-            {saving ? '保存中…' : '保存する'}
+          <button type="submit" className={styles.submit} disabled={!dirty || saving || preparing}>
+            {preparing ? '画像を準備中…' : saving ? '保存中…' : '保存する'}
           </button>
         </div>
       </form>

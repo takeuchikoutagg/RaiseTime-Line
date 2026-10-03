@@ -1,11 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPost, updatePost } from '../../api/posts.js'
+import { resizeForPost } from '../../utils/image.js'
 import { ApiError } from '../../api/client.js'
 import ComposeModal, { DISCARD_CONFIRM_MESSAGE } from './ComposeModal.jsx'
 
 vi.mock('../../api/posts.js', () => ({ createPost: vi.fn(), updatePost: vi.fn() }))
+// jsdom では画像を読み込めないので、縮める処理は置き換える（縮める処理そのものは utils/image.test.js で確かめる）
+vi.mock('../../utils/image.js', () => ({ resizeForPost: vi.fn() }))
 
 function image(name, type = 'image/png', size = 10) {
   return new File([new Uint8Array(size)], name, { type })
@@ -19,6 +22,7 @@ describe('ComposeModal', () => {
       createObjectURL: vi.fn(() => `blob:preview-${n++}`),
       revokeObjectURL: vi.fn(),
     }))
+    vi.mocked(resizeForPost).mockImplementation(async (file) => file)
   })
 
   afterEach(() => {
@@ -56,7 +60,8 @@ describe('ComposeModal', () => {
     const { user } = setup()
 
     await user.upload(screen.getByTestId('image-input'), [image('a.png'), image('b.jpg', 'image/jpeg')])
-    expect(screen.getAllByRole('img')).toHaveLength(2)
+    expect(await screen.findAllByRole('img')).toHaveLength(2)
+    expect(resizeForPost).toHaveBeenCalledTimes(2)
     expect(screen.getByText('画像を追加（2/4）')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '画像1を外す' }))
@@ -68,26 +73,53 @@ describe('ComposeModal', () => {
     const { user } = setup()
 
     await user.upload(screen.getByTestId('image-input'), [image('1.png'), image('2.png'), image('3.png'), image('4.png')])
-    expect(screen.getAllByRole('img')).toHaveLength(4)
+    expect(await screen.findAllByRole('img')).toHaveLength(4)
     expect(screen.getByTestId('image-input')).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: '画像4を外す' }))
     await user.upload(screen.getByTestId('image-input'), [image('a.bmp', 'image/bmp')])
-    expect(screen.getByRole('alert')).toHaveTextContent('JPEG・PNG・GIF・WebP の画像を選んでください')
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('JPEG・PNG・GIF・WebP の画像を選んでください'))
 
+    // 縮めても5MBを超える（縮められない）ときは追加しない
     await user.upload(screen.getByTestId('image-input'), [image('big.png', 'image/png', 5 * 1024 * 1024 + 1)])
-    expect(screen.getByRole('alert')).toHaveTextContent('画像は1枚5MBまでです')
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('画像は1枚5MBまでです'))
     expect(screen.getAllByRole('img')).toHaveLength(3)
   })
 
-  it('ブラウザが表示できない（中身が画像でない）ファイルは外して、メッセージを出す', async () => {
+  it('ブラウザが読み込めない（中身が画像でない）ファイルは追加せず、メッセージを出す', async () => {
+    vi.mocked(resizeForPost).mockRejectedValueOnce(new Error('画像を読み込めませんでした'))
     const { user } = setup()
 
     await user.upload(screen.getByTestId('image-input'), [image('photo.jpg', 'image/jpeg')])
-    fireEvent.error(screen.getByRole('img', { name: '選んだ画像1' }))
 
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('JPEG・PNG・GIF・WebP の画像を選んでください'))
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('JPEG・PNG・GIF・WebP の画像を選んでください')
+  })
+
+  it('大きな写真は縮めてから送る（元が5MBを超えていても、縮めて収まれば追加できる）', async () => {
+    const original = image('photo.jpg', 'image/jpeg', 8 * 1024 * 1024)
+    const resized = image('photo.jpg', 'image/jpeg', 300 * 1024)
+    vi.mocked(resizeForPost).mockResolvedValue(resized)
+    vi.mocked(createPost).mockResolvedValue({ id: 1 })
+    const { user } = setup()
+
+    await user.type(screen.getByLabelText('本文'), '写真')
+    await user.upload(screen.getByTestId('image-input'), [original])
+    expect(await screen.findAllByRole('img')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: '投稿する' }))
+
+    expect(resizeForPost).toHaveBeenCalledWith(original)
+    expect(createPost).toHaveBeenCalledWith({ body: '写真', images: [resized] })
+  })
+
+  it('画像を縮めている間は投稿できない', async () => {
+    vi.mocked(resizeForPost).mockReturnValue(new Promise(() => {}))
+    const { user } = setup()
+
+    await user.type(screen.getByLabelText('本文'), 'こんにちは')
+    await user.upload(screen.getByTestId('image-input'), [image('a.png')])
+
+    expect(screen.getByRole('button', { name: '画像を準備中…' })).toBeDisabled()
   })
 
   it('投稿すると、本文と画像を送って onCreated を呼ぶ', async () => {
@@ -98,6 +130,7 @@ describe('ComposeModal', () => {
 
     await user.type(screen.getByLabelText('本文'), 'こんにちは')
     await user.upload(screen.getByTestId('image-input'), [file])
+    await screen.findByRole('img')
     await user.click(screen.getByRole('button', { name: '投稿する' }))
 
     expect(createPost).toHaveBeenCalledWith({ body: 'こんにちは', images: [file] })
@@ -193,7 +226,7 @@ describe('ComposeModal', () => {
 
       await user.upload(screen.getByTestId('image-input'), [image('c.png'), image('d.png'), image('e.png')])
 
-      expect(screen.getAllByRole('img')).toHaveLength(4)
+      await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(4))
       expect(screen.getByRole('alert')).toHaveTextContent('画像は4枚まで添付できます')
       await user.click(screen.getByRole('button', { name: '保存する' }))
       const [, payload] = vi.mocked(updatePost).mock.calls[0]

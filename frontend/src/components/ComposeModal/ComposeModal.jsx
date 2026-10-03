@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPost, updatePost } from '../../api/posts.js'
+import { resizeForPost } from '../../utils/image.js'
 import { countChars } from '../../utils/text.js'
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -32,6 +33,8 @@ export default function ComposeModal({ post = null, onClose, onCreated, onSaved 
   const [images, setImages] = useState(() => initialImages(post))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // 選んだ画像を縮めている間は投稿できない
+  const [preparing, setPreparing] = useState(false)
   const fileInputId = useId()
   const nextImageId = useRef(0)
   // 閉じるときに、その時点で選んでいる画像のプレビュー URL を解放するため、最新の一覧を覚えておく
@@ -52,22 +55,41 @@ export default function ComposeModal({ post = null, onClose, onCreated, onSaved 
     (body !== post.body ||
       images.length !== post.images.length ||
       images.some((image, index) => image.existingId !== post.images[index].id))
-  const canSubmit = isValidBody(body) && !submitting && (!isEdit || dirty)
+  const canSubmit = isValidBody(body) && !submitting && !preparing && (!isEdit || dirty)
 
   function handleClose() {
     if (dirty && !submitting && !window.confirm(DISCARD_CONFIRM_MESSAGE)) return
     onClose()
   }
 
-  function handleFiles(event) {
-    const { accepted, error: imageError } = checkImages([...event.target.files], images.length)
-    setError(imageError)
+  // 選んだ画像を、送る前にブラウザの中で縮める（長い辺 1600px まで。utils/image.js）。
+  // 縮めたあとの大きさで、枚数・形式・サイズを確かめる（元の写真が5MBを超えていても、縮めて収まれば送れる）
+  async function handleFiles(event) {
+    const files = [...event.target.files]
+    // 同じファイルをもう一度選べるようにする
+    event.target.value = ''
+    setPreparing(true)
+    let loadError = ''
+    const prepared = []
+    for (const file of files) {
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        prepared.push(file)
+        continue
+      }
+      try {
+        prepared.push(await resizeForPost(file))
+      } catch {
+        // 画像として読み込めない（拡張子だけ画像の）ファイルは外す。最終的な判定はサーバーが中身で行う
+        loadError ||= IMAGE_TYPE_MESSAGE
+      }
+    }
+    setPreparing(false)
+    const { accepted, error: imageError } = checkImages(prepared, imagesRef.current.length)
+    setError(loadError || imageError)
     setImages((current) => [
       ...current,
       ...accepted.map((file) => ({ id: nextImageId.current++, file, previewUrl: URL.createObjectURL(file) })),
     ])
-    // 同じファイルをもう一度選べるようにする
-    event.target.value = ''
   }
 
   function removeImage(id, message = '') {
@@ -166,7 +188,15 @@ export default function ComposeModal({ post = null, onClose, onCreated, onSaved 
         </p>
         <div className={styles.actions}>
           <button type="submit" className={styles.submit} disabled={!canSubmit}>
-            {isEdit ? (submitting ? '保存中…' : '保存する') : submitting ? '投稿中…' : '投稿する'}
+            {preparing
+              ? '画像を準備中…'
+              : isEdit
+                ? submitting
+                  ? '保存中…'
+                  : '保存する'
+                : submitting
+                  ? '投稿中…'
+                  : '投稿する'}
           </button>
         </div>
       </form>
