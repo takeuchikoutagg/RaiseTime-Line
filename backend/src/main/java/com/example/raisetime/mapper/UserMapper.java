@@ -13,6 +13,9 @@ public interface UserMapper {
 
     User findById(Long id);
 
+    // プロフィール編集（F-12）のために、行をロックして取る（同じユーザーの編集が同時に走らないようにする）。無ければ null
+    User findByIdForUpdate(Long id);
+
     User findByUsername(String username);
 
     // ユーザーページ（F-08）。フォロー数・フォロワー数・viewerId がフォロー中かを合わせて取る。無ければ null

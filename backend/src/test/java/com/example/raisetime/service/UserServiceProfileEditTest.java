@@ -94,7 +94,7 @@ class UserServiceProfileEditTest {
         user.setId(1L);
         user.setBio("");
         user.setAvatarKey(avatarKey);
-        when(userMapper.findById(1L)).thenReturn(user);
+        when(userMapper.findByIdForUpdate(1L)).thenReturn(user);
     }
 
     private static MockMultipartFile avatar(byte[] data) {
@@ -154,6 +154,11 @@ class UserServiceProfileEditTest {
                 .isInstanceOf(InvalidInputException.class).hasMessage("名前は1〜50文字で入力してください");
         assertThatThrownBy(() -> userService.updateProfile(1L, "あ".repeat(51), "taro_dev", "", null, false))
                 .isInstanceOf(InvalidInputException.class).hasMessage("名前は1〜50文字で入力してください");
+        // 名前は1行で表示するので、途中の改行・タブ・制御文字は使えない（前後の改行は取り除く）
+        for (String name : new String[] {"1行目\n2行目", "1行目\r\n2行目", "タブ\tあり", "ベル\u0007"}) {
+            assertThatThrownBy(() -> userService.updateProfile(1L, name, "taro_dev", "", null, false))
+                    .isInstanceOf(InvalidInputException.class).hasMessage("名前は1〜50文字で入力してください");
+        }
         for (String username : new String[] {null, "ab", "Taro", "taro-dev", "a".repeat(16)}) {
             assertThatThrownBy(() -> userService.updateProfile(1L, "山田太郎", username, "", null, false))
                     .isInstanceOf(InvalidInputException.class)
@@ -303,5 +308,17 @@ class UserServiceProfileEditTest {
         ArgumentCaptor<byte[]> uploaded = ArgumentCaptor.forClass(byte[].class);
         verify(imageStorage).put(anyString(), uploaded.capture(), eq("image/jpeg"));
         assertThat(uploaded.getValue()).containsExactly((byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xD9);
+    }
+
+    @Test
+    void update_locksTheUserRow_andTrimsSurroundingLineBreaksInName() {
+        currentUser(null);
+
+        userService.updateProfile(1L, "\n山田太郎\r\n", "taro_dev", "", null, false);
+
+        // 同時に保存されたときに古い画像を正しく消せるよう、行をロックして取る
+        verify(userMapper).findByIdForUpdate(1L);
+        verify(userMapper, never()).findById(any());
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "", null);
     }
 }

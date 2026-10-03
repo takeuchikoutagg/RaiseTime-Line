@@ -14,6 +14,13 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findByIdForUpdate" resultType="com.example.raisetime.entity.User">
+        SELECT id, username, name, email, password_hash, bio, avatar_key, created_at, updated_at
+        FROM users
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
     <select id="findByUsername" resultType="com.example.raisetime.entity.User">
         SELECT id, username, name, email, password_hash, bio, avatar_key, created_at, updated_at
         FROM users
