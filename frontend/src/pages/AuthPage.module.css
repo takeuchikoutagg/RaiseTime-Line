@@ -66,6 +66,11 @@
   color: var(--color-text-sub);
 }
 
+/* 入力欄がエラーのときは「@」部分の枠も赤くして、1つの枠に見えるようにする */
+.prefix:has(.invalid) .prefixMark {
+  border-color: var(--color-danger);
+}
+
 .prefix .input {
   border-left: none;
   border-radius: 0 8px 8px 0;
