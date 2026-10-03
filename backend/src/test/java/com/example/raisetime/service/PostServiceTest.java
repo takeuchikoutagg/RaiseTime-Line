@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -38,11 +39,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -432,10 +436,10 @@ class PostServiceTest {
         PostResponse response = postService.update(5L, TARO, "編集後", List.of(51L, 52L), null);
 
         verify(postMapper).updateBody(5L, "編集後");
-        verify(postImageMapper).deleteByPostId(5L);
-        assertThat(insertedImages()).extracting(PostImage::getS3Key, PostImage::getPosition)
-                .containsExactly(tuple("posts/5/a.png", 1),
-                        tuple("posts/5/b.png", 2));
+        // 画像の行は消さず、並びも変わらないので何も更新しない（画像の id はそのまま）
+        verify(postImageMapper, never()).deleteByIds(any());
+        verify(postImageMapper, never()).updatePosition(anyLong(), anyInt());
+        assertThat(insertedImages()).isEmpty();
         assertThat(response.editedAt()).isEqualTo(Instant.parse("2026-10-02T00:00:00Z"));
         commit();
         verify(imageStorage, never()).delete(anyString());
@@ -448,11 +452,15 @@ class PostServiceTest {
         // b → a の順に残し、c を外して、新しい画像を1枚足す
         postService.update(5L, TARO, "編集後", List.of(52L, 51L), List.of(file("new.jpg", JPEG)));
 
+        // 外した c の行だけ消し、残す b・a は id を変えずに表示順だけ変える（重なりのチェックは遅らせてから）
+        InOrder order = inOrder(postImageMapper);
+        order.verify(postImageMapper).deferPositionCheck();
+        order.verify(postImageMapper).deleteByIds(List.of(53L));
+        verify(postImageMapper).updatePosition(52L, 1);
+        verify(postImageMapper).updatePosition(51L, 2);
         List<PostImage> inserted = insertedImages();
-        assertThat(inserted).extracting(PostImage::getPosition).containsExactly(1, 2, 3);
-        assertThat(inserted.get(0).getS3Key()).isEqualTo("posts/5/b.png");
-        assertThat(inserted.get(1).getS3Key()).isEqualTo("posts/5/a.png");
-        assertThat(inserted.get(2).getS3Key()).matches("posts/5/[0-9a-f-]{36}\\.jpg");
+        assertThat(inserted).extracting(PostImage::getPosition).containsExactly(3);
+        assertThat(inserted.get(0).getS3Key()).matches("posts/5/[0-9a-f-]{36}\\.jpg");
         // 外した画像は、DB の更新が確定するまで消さない
         verify(imageStorage, never()).delete(anyString());
         commit();
@@ -481,7 +489,10 @@ class PostServiceTest {
         // 99 はほかの投稿の画像 id。重複した 51 も1回だけ
         postService.update(5L, TARO, "編集後", List.of(51L, 99L, 51L), null);
 
-        assertThat(insertedImages()).extracting(PostImage::getS3Key).containsExactly("posts/5/a.png");
+        // a は残る（消さない・表示順も 1 のまま）。ほかの投稿の画像 99 には触らない
+        verify(postImageMapper, never()).deleteByIds(any());
+        verify(postImageMapper, never()).updatePosition(anyLong(), anyInt());
+        assertThat(insertedImages()).isEmpty();
     }
 
     @Test

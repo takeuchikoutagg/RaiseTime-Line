@@ -215,24 +215,29 @@ public class PostService {
         List<PostImage> kept = keepImageIds == null ? List.of()
                 : keepImageIds.stream().distinct().map(currentById::get).filter(Objects::nonNull).toList();
         List<ValidatedImage> added = validateImages(files, kept.size());
-        List<String> removedKeys = current.stream()
-                .filter(image -> !kept.contains(image))
-                .map(PostImage::getS3Key)
-                .toList();
+        List<PostImage> removed = current.stream().filter(image -> !kept.contains(image)).toList();
 
         List<String> addedKeys = upload(postId, added);
         postMapper.updateBody(postId, body);
 
         // 表示順を「残す画像（送った順）→ 追加する画像」で 1〜4 に振り直す。
-        // UNIQUE(post_id, position) に当たらないよう、いったん全部消して入れ直す（残す画像は同じ S3 のキーを使う）
-        postImageMapper.deleteByPostId(postId);
+        // 画像の行は消さずに position だけ変えるので、画像の id は変わらない（古い画面から保存しても、残す画像を正しく指せる）。
+        // 入れ替えの途中で表示順が一時的に重なってもよいよう、重なりのチェックはコミット時まで遅らせる
+        postImageMapper.deferPositionCheck();
+        if (!removed.isEmpty()) {
+            postImageMapper.deleteByIds(removed.stream().map(PostImage::getId).toList());
+        }
         int position = 1;
         for (PostImage image : kept) {
-            postImageMapper.insert(new PostImage(postId, image.getS3Key(), position++));
+            if (image.getPosition() != position) {
+                postImageMapper.updatePosition(image.getId(), position);
+            }
+            position++;
         }
         for (String key : addedKeys) {
             postImageMapper.insert(new PostImage(postId, key, position++));
         }
+        List<String> removedKeys = removed.stream().map(PostImage::getS3Key).toList();
 
         // 外した画像は、DB の更新が確定してから S3 から消す。消せなくても編集は成功扱いにし、ログに残す
         afterCommit(() -> removedKeys.forEach(this::deleteQuietly));
