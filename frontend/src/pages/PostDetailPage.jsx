@@ -16,13 +16,17 @@ export default function PostDetailPage() {
   return <PostDetail key={postId} postId={postId} />
 }
 
+// 投稿 id は数字だけ。/posts/abc のような URL は、API に問い合わせず「投稿が見つかりません」にする
+const POST_ID_PATTERN = /^\d+$/
+
 function PostDetail({ postId }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const validId = POST_ID_PATTERN.test(postId)
   const [post, setPost] = useState(null)
   const [comments, setComments] = useState([])
   const [nextCursor, setNextCursor] = useState(null)
-  const [status, setStatus] = useState('loading') // loading | ready | notFound | error
+  const [status, setStatus] = useState(validId ? 'loading' : 'notFound') // loading | ready | notFound | error
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const [deleting, setDeleting] = useState(null)
@@ -30,6 +34,7 @@ function PostDetail({ postId }) {
 
   // 投稿と、コメントの最初の20件を同時に読み込む
   useEffect(() => {
+    if (!validId) return undefined
     let cancelled = false
     Promise.all([fetchPost(postId), fetchComments(postId)])
       .then(([loadedPost, page]) => {
@@ -40,12 +45,13 @@ function PostDetail({ postId }) {
         setStatus('ready')
       })
       .catch((e) => {
-        if (!cancelled) setStatus(e.status === 404 ? 'notFound' : 'error')
+        // 404（投稿が無い）・400（id の形が正しくない）は、再読み込みしても直らないので「見つかりません」にする
+        if (!cancelled) setStatus(e.status === 404 || e.status === 400 ? 'notFound' : 'error')
       })
     return () => {
       cancelled = true
     }
-  }, [postId, reloadKey])
+  }, [postId, validId, reloadKey])
 
   function reload() {
     setStatus('loading')

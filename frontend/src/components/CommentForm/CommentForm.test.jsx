@@ -27,6 +27,11 @@ describe('CommentForm', () => {
     expect(submit).toBeDisabled()
     await user.type(textarea, '   ')
     expect(submit).toBeDisabled()
+    // ゼロ幅スペースだけ（見た目は空）も送信できない
+    await user.clear(textarea)
+    await user.click(textarea)
+    await user.paste('\u200B\u00A0')
+    expect(submit).toBeDisabled()
   })
 
   it('文字数を数え、280文字を超えたら赤くして送信できなくする（絵文字も1文字）', async () => {

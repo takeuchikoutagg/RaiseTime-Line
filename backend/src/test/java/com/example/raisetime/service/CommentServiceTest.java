@@ -120,7 +120,8 @@ class CommentServiceTest {
 
     @Test
     void create_bodyBlankOrTooLong_isRejected_beforeSaving() {
-        for (String body : new String[] {null, "", "   ", "あ".repeat(281)}) {
+        // 見えない文字（改行しないスペース・ゼロ幅スペース）だけも空白と同じく不可
+        for (String body : new String[] {null, "", "   ", "\u00A0", "\u200B", " \u200B\u3000 ", "あ".repeat(281)}) {
             assertThatThrownBy(() -> commentService.create(10L, TARO, body))
                     .isInstanceOf(InvalidInputException.class)
                     .hasMessage("コメントは1〜280文字で入力してください");

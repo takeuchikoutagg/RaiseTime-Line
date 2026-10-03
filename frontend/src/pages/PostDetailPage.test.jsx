@@ -116,6 +116,23 @@ describe('PostDetailPage', () => {
     expect(screen.getByRole('link', { name: 'タイムラインへ戻る' })).toHaveAttribute('href', '/')
   })
 
+  it('/posts/abc のように id が数字でない URL は、API に問い合わせず「投稿が見つかりません」', async () => {
+    renderDetail('/posts/abc')
+
+    expect(await screen.findByText('投稿が見つかりません')).toBeInTheDocument()
+    expect(fetchPost).not.toHaveBeenCalled()
+    expect(fetchComments).not.toHaveBeenCalled()
+  })
+
+  it('API が 400 を返したときも、再読み込みではなく「投稿が見つかりません」', async () => {
+    vi.mocked(fetchPost).mockRejectedValue(new ApiError(400, { message: 'リクエストのパラメーターが正しくありません' }))
+    vi.mocked(fetchComments).mockRejectedValue(new ApiError(400, {}))
+    renderDetail('/posts/99999999999999999999')
+
+    expect(await screen.findByText('投稿が見つかりません')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '再読み込み' })).not.toBeInTheDocument()
+  })
+
   it('読み込みに失敗したら「再読み込み」で読み直せる', async () => {
     vi.mocked(fetchPost).mockRejectedValueOnce(new ApiError(0, {})).mockResolvedValueOnce(post())
     vi.mocked(fetchComments).mockResolvedValue({ items: [], nextCursor: null })
@@ -141,7 +158,7 @@ describe('PostDetailPage', () => {
     expect(createComment).toHaveBeenCalledWith(10, '新しいコメント')
     expect(await screen.findByText('新しいコメント')).toBeInTheDocument()
     expect(commentBodies()).toEqual(['コメント1', 'コメント2', '新しいコメント'])
-    expect(screen.getByLabelText('コメント', { selector: 'span' })).toHaveTextContent('💬 3')
+    expect(screen.getByLabelText(/^コメント \d+件$/, { selector: 'span' })).toHaveTextContent('💬 3')
   })
 
   it('まだ続きがあるときは、送信したコメントを途中に足さない（スクロールで最後まで読むと出る）', async () => {
@@ -156,7 +173,7 @@ describe('PostDetailPage', () => {
     await user.type(screen.getByLabelText('コメント', { selector: 'textarea' }), '新しいコメント')
     await user.click(screen.getByRole('button', { name: '送信' }))
 
-    expect(screen.getByLabelText('コメント', { selector: 'span' })).toHaveTextContent('💬 22')
+    expect(screen.getByLabelText(/^コメント \d+件$/, { selector: 'span' })).toHaveTextContent('💬 22')
     expect(commentBodies()).toEqual(['コメント1'])
 
     act(() => io.scrollToBottom())
@@ -205,10 +222,10 @@ describe('PostDetailPage', () => {
     const { user } = renderDetail()
     await screen.findByText('詳細の投稿')
 
-    await user.click(screen.getByRole('button', { name: 'いいね' }))
+    await user.click(screen.getByRole('button', { name: /^いいね/ }))
 
     expect(likePost).toHaveBeenCalledWith(10)
-    expect(screen.getByRole('button', { name: 'いいね' })).toHaveTextContent('♥ 3')
+    expect(screen.getByRole('button', { name: /^いいね/ })).toHaveTextContent('♥ 3')
   })
 
   it('自分の投稿を削除したら、タイムラインへ戻る', async () => {
@@ -244,7 +261,7 @@ describe('PostDetailPage', () => {
     vi.mocked(fetchComments).mockResolvedValue({ items: [], nextCursor: null })
     const { user } = renderDetail('/')
 
-    await user.click(await screen.findByRole('link', { name: 'コメント' }))
+    await user.click(await screen.findByRole('link', { name: /^コメント \d+件$/ }))
     await user.click(await screen.findByRole('button', { name: '← 戻る' }))
 
     expect(await screen.findByRole('heading', { name: 'ホーム' })).toBeInTheDocument()

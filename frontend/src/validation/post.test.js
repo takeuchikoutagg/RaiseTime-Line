@@ -9,6 +9,9 @@ describe('isValidBody', () => {
   it('空・空白だけは不可、絵文字280文字は OK、281文字は不可', () => {
     expect(isValidBody('')).toBe(false)
     expect(isValidBody('   ')).toBe(false)
+    // 見えない文字（改行しないスペース・ゼロ幅スペース）だけも不可
+    expect(isValidBody('\u00A0')).toBe(false)
+    expect(isValidBody('\u200B')).toBe(false)
     expect(isValidBody('こんにちは')).toBe(true)
     expect(isValidBody('😀'.repeat(280))).toBe(true)
     expect(isValidBody('😀'.repeat(281))).toBe(false)

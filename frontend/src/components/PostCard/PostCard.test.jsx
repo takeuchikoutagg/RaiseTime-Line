@@ -1,11 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { likePost, unlikePost } from '../../api/posts.js'
 import { ApiError } from '../../api/client.js'
-import PostCard from './PostCard.jsx'
+import PostCard, { LIKE_ERROR_DURATION_MS } from './PostCard.jsx'
 
 vi.mock('../../api/posts.js', () => ({
   likePost: vi.fn(),
@@ -50,12 +50,16 @@ function renderCard(initial = post(), options = {}) {
 }
 
 function likeButton() {
-  return screen.getByRole('button', { name: 'いいね' })
+  return screen.getByRole('button', { name: /^いいね/ })
 }
 
 describe('PostCard', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('名前・@ユーザーID・相対時刻・本文・いいね数・コメント数を表示する', () => {
@@ -66,7 +70,10 @@ describe('PostCard', () => {
     expect(screen.getByText('3分前')).toBeInTheDocument()
     expect(screen.getByText(/こんにちは/)).toBeInTheDocument()
     expect(likeButton()).toHaveTextContent('♡ 12')
-    expect(screen.getByRole('link', { name: 'コメント' })).toHaveTextContent('💬 3')
+    expect(screen.getByRole('link', { name: /^コメント \d+件$/ })).toHaveTextContent('💬 3')
+    // 読み上げソフトにも件数が伝わる名前にする
+    expect(screen.getByRole('button', { name: 'いいね 12件' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('link', { name: 'コメント 3件' })).toBeInTheDocument()
     // インプレッション数・リツイートは出さない
     expect(screen.queryByText(/インプレッション|リツイート/)).not.toBeInTheDocument()
   })
@@ -75,7 +82,7 @@ describe('PostCard', () => {
     renderCard()
 
     expect(screen.getByText(/こんにちは/).closest('a')).toHaveAttribute('href', '/posts/10')
-    expect(screen.getByRole('link', { name: 'コメント' })).toHaveAttribute('href', '/posts/10')
+    expect(screen.getByRole('link', { name: /^コメント \d+件$/ })).toHaveAttribute('href', '/posts/10')
   })
 
   it('本文の HTML は文字のまま表示する（XSS 対策）', () => {
@@ -131,8 +138,8 @@ describe('PostCard', () => {
     expect(screen.getByText(/^2026\/09\/26 \d{2}:30$/)).toBeInTheDocument()
     expect(screen.getByText(/^編集済み 2026\/09\/26 \d{2}:05$/)).toBeInTheDocument()
     expect(screen.getByText(/こんにちは/).closest('a')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'コメント' })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('コメント')).toHaveTextContent('💬 3')
+    expect(screen.queryByRole('link', { name: /^コメント \d+件$/ })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('コメント 3件')).toHaveTextContent('💬 3')
   })
 
   // ---------- いいね ----------
@@ -203,5 +210,28 @@ describe('PostCard', () => {
     expect(likePost).toHaveBeenCalledTimes(1)
     expect(unlikePost).not.toHaveBeenCalled()
     expect(likeButton()).toHaveTextContent('♥ 13')
+  })
+
+  it('いいねの失敗メッセージは、3秒たつと消える', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    vi.mocked(likePost).mockRejectedValue(new ApiError(0, {}))
+    renderCard()
+
+    await user.click(likeButton())
+    expect(await screen.findByRole('alert')).toHaveTextContent('いいねできませんでした')
+
+    await act(() => vi.advanceTimersByTimeAsync(LIKE_ERROR_DURATION_MS))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('いいねすると、読み上げ用の名前の件数も変わる', async () => {
+    const user = userEvent.setup()
+    vi.mocked(likePost).mockResolvedValue({ likeCount: 13, likedByMe: true })
+    renderCard()
+
+    await user.click(likeButton())
+
+    expect(await screen.findByRole('button', { name: 'いいね 13件', pressed: true })).toBeInTheDocument()
   })
 })

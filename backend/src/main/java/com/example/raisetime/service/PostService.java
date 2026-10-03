@@ -15,6 +15,7 @@ import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
+import com.example.raisetime.validation.VisibleText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -98,8 +99,8 @@ public class PostService {
     }
 
     private static void validateBody(String body) {
-        // 空白だけは不可。文字数は絵文字も1文字と数える
-        if (body == null || body.isBlank() || body.codePointCount(0, body.length()) > MAX_BODY_LENGTH) {
+        // 空白・見えない文字（ゼロ幅スペースなど）だけは不可。文字数は絵文字も1文字と数える
+        if (!VisibleText.hasVisibleCharacter(body) || body.codePointCount(0, body.length()) > MAX_BODY_LENGTH) {
             throw new InvalidInputException("body", BODY_MESSAGE);
         }
     }

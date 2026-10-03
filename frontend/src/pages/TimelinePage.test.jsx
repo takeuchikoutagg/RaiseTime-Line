@@ -261,11 +261,11 @@ describe('TimelinePage', () => {
     const { user } = renderTimeline()
     const target = (await screen.findByText('投稿1')).closest('article')
 
-    await user.click(within(target).getByRole('button', { name: 'いいね' }))
+    await user.click(within(target).getByRole('button', { name: /^いいね/ }))
 
     expect(likePost).toHaveBeenCalledWith(1)
-    expect(within(target).getByRole('button', { name: 'いいね' })).toHaveTextContent('♥ 1')
+    expect(within(target).getByRole('button', { name: /^いいね/ })).toHaveTextContent('♥ 1')
     const other = screen.getByText('投稿2').closest('article')
-    expect(within(other).getByRole('button', { name: 'いいね' })).toHaveTextContent('♡ 0')
+    expect(within(other).getByRole('button', { name: /^いいね/ })).toHaveTextContent('♡ 0')
   })
 })
