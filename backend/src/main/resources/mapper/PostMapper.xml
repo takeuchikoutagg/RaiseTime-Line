@@ -53,6 +53,19 @@
         LIMIT #{limit}
     </select>
 
+    <!-- ユーザーページ（F-08）：その人の投稿だけを新しい順に。posts (user_id, id DESC) のインデックスが使われる -->
+    <select id="findByUser" resultType="com.example.raisetime.entity.PostWithAuthor">
+        SELECT <include refid="postWithAuthorColumns"/>
+        FROM posts p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.user_id = #{userId}
+        <if test="before != null">
+          AND p.id &lt; #{before}
+        </if>
+        ORDER BY p.id DESC
+        LIMIT #{limit}
+    </select>
+
     <!-- 対象はタイムラインと同じ（自分＋フォロー中の人）。件数は数えず、1件でもあれば true（画面に件数は出さない） -->
     <select id="existsTimelineNewerThan" resultType="boolean">
         SELECT EXISTS (

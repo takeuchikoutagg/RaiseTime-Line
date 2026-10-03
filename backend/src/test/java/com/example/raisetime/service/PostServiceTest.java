@@ -391,4 +391,19 @@ class PostServiceTest {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("投稿が見つかりません");
     }
+
+    // ---------- ユーザーの投稿一覧 ----------
+
+    @Test
+    void userPosts_buildsPageLikeTimeline() {
+        List<PostWithAuthor> rows = LongStream.rangeClosed(1, 21).map(i -> 100 - i)
+                .mapToObj(id -> row(id, 2, "hanako")).toList();
+        when(postMapper.findByUser(2L, 1L, null, 21)).thenReturn(rows);
+
+        TimelineResponse response = postService.userPosts(2L, 1L, null);
+
+        assertThat(response.items()).hasSize(20);
+        assertThat(response.items()).extracting(PostResponse::isMine).containsOnly(false);
+        assertThat(response.nextCursor()).isEqualTo(80L);
+    }
 }

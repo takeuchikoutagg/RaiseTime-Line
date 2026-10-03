@@ -14,6 +14,26 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findByUsername" resultType="com.example.raisetime.entity.User">
+        SELECT id, username, name, email, password_hash, created_at, updated_at
+        FROM users
+        WHERE username = #{username}
+    </select>
+
+    <!--
+        ユーザーページ（F-08）。フォロー数・フォロワー数・見ている人（viewerId）がフォロー中かを、1回の SQL で取る。
+        follows の UNIQUE(follower_id, followee_id) と (followee_id) のインデックスが使われる
+    -->
+    <select id="findProfile" resultType="com.example.raisetime.entity.UserProfile">
+        SELECT u.id, u.username, u.name,
+               (SELECT count(*) FROM follows f WHERE f.follower_id = u.id) AS following_count,
+               (SELECT count(*) FROM follows f WHERE f.followee_id = u.id) AS follower_count,
+               EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = #{viewerId} AND f.followee_id = u.id)
+                   AS followed_by_me
+        FROM users u
+        WHERE u.username = #{username}
+    </select>
+
     <select id="existsByUsername" resultType="boolean">
         SELECT EXISTS (SELECT 1 FROM users WHERE username = #{username})
     </select>
