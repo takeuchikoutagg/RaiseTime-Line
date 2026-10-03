@@ -135,7 +135,7 @@ erDiagram
 | id | bigint | × | PK（IDENTITY） | |
 | post_id | bigint | × | FK → posts.id | |
 | s3_key | varchar(255) | × | UNIQUE | S3 のオブジェクトキー（例：`posts/{post_id}/{uuid}.jpg`） |
-| position | smallint | × | CHECK(position BETWEEN 1 AND 4)、UNIQUE(post_id, position) | 表示順 |
+| position | smallint | × | CHECK(position BETWEEN 1 AND 4)、UNIQUE(post_id, position) DEFERRABLE | 表示順。UNIQUE は「遅らせてチェックできる」制約にしてあり、投稿編集（F-10）で並べ替えるときだけコミット時にまとめてチェックする（ふだんはすぐチェックする） |
 | created_at | timestamptz | × | DEFAULT now() | |
 
 > 画像ファイルそのものは **AWS S3** に置き、DB には S3 のオブジェクトキーだけを保存する。URL（ドメインやバケット名を含む）をそのまま保存しないのは、CloudFront のドメインを変えたり、署名付き URL に切り替えたりしても、DB のデータを直さずに済むようにするため。表示するときにキーから URL を組み立てる。

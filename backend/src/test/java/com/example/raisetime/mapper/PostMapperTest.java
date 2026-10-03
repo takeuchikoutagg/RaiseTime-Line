@@ -266,20 +266,52 @@ class PostMapperTest {
     }
 
     @Test
-    void deleteByPostId_removesOnlyThatPostsImages_andPositionsCanBeReused() {
-        Post a = insertPost(taro, "a");
-        Post b = insertPost(taro, "b");
-        postImageMapper.insert(new PostImage(a.getId(), "posts/a/1.png", 1));
-        postImageMapper.insert(new PostImage(a.getId(), "posts/a/2.png", 2));
-        postImageMapper.insert(new PostImage(b.getId(), "posts/b/1.png", 1));
+    void swapPositions_withDeferredCheck_succeeds_andIdsStayTheSame() {
+        Post post = insertPost(taro, "入れ替え");
+        PostImage a = new PostImage(post.getId(), "posts/x/a.png", 1);
+        PostImage b = new PostImage(post.getId(), "posts/x/b.png", 2);
+        postImageMapper.insert(a);
+        postImageMapper.insert(b);
 
-        assertThat(postImageMapper.deleteByPostId(a.getId())).isEqualTo(2);
-        // 消したあとは、同じキー・同じ表示順で入れ直せる（編集で表示順を振り直すとき）
-        postImageMapper.insert(new PostImage(a.getId(), "posts/a/2.png", 1));
+        // 編集と同じく、重なりのチェックを遅らせてから1件ずつ入れ替える（途中で 1 が重なる）
+        postImageMapper.deferPositionCheck();
+        postImageMapper.updatePosition(b.getId(), 1);
+        postImageMapper.updatePosition(a.getId(), 2);
+        // コミット時と同じチェックをここで行う。最終的に重なっていなければエラーにならない
+        jdbcTemplate.execute("SET CONSTRAINTS uq_post_images_post_position IMMEDIATE");
 
-        assertThat(postImageMapper.findByPostIds(List.of(a.getId(), b.getId())))
-                .extracting(PostImage::getS3Key, PostImage::getPosition)
-                .containsExactly(tuple("posts/a/2.png", 1),
-                        tuple("posts/b/1.png", 1));
+        assertThat(postImageMapper.findByPostIds(List.of(post.getId())))
+                .extracting(PostImage::getId, PostImage::getPosition)
+                .containsExactly(tuple(b.getId(), 1), tuple(a.getId(), 2));
+    }
+
+    @Test
+    void positionsStillOverlappingAtTheEnd_areRejected_evenWithDeferredCheck() {
+        Post post = insertPost(taro, "重なり");
+        PostImage a = new PostImage(post.getId(), "posts/y/a.png", 1);
+        PostImage b = new PostImage(post.getId(), "posts/y/b.png", 2);
+        postImageMapper.insert(a);
+        postImageMapper.insert(b);
+
+        postImageMapper.deferPositionCheck();
+        postImageMapper.updatePosition(b.getId(), 1);
+
+        assertThatThrownBy(() -> jdbcTemplate.execute("SET CONSTRAINTS uq_post_images_post_position IMMEDIATE"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("uq_post_images_post_position");
+    }
+
+    @Test
+    void deleteByIds_removesOnlyThoseImages() {
+        Post post = insertPost(taro, "外す");
+        PostImage a = new PostImage(post.getId(), "posts/z/a.png", 1);
+        PostImage b = new PostImage(post.getId(), "posts/z/b.png", 2);
+        postImageMapper.insert(a);
+        postImageMapper.insert(b);
+
+        assertThat(postImageMapper.deleteByIds(List.of(a.getId()))).isEqualTo(1);
+
+        assertThat(postImageMapper.findByPostIds(List.of(post.getId()))).extracting(PostImage::getId)
+                .containsExactly(b.getId());
     }
 }
