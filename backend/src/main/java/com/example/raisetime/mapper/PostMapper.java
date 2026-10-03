@@ -16,7 +16,11 @@ public interface PostMapper {
 
     Post findById(Long id);
 
-    // 自分＋フォロー中の人の投稿を、新しい順（id の大きい順）に limit 件。before があれば、それより古いもの
+    // 投稿詳細（F-05）。投稿者の名前、いいね数・コメント数、viewerId がいいね済みかを合わせて取る。無ければ null
+    PostWithAuthor findDetailById(@Param("postId") Long postId, @Param("viewerId") Long viewerId);
+
+    // 自分＋フォロー中の人の投稿を、新しい順（id の大きい順）に limit 件。before があれば、それより古いもの。
+    // いいね数・コメント数・viewerId がいいね済みかも合わせて取る
     List<PostWithAuthor> findTimeline(@Param("viewerId") Long viewerId, @Param("before") Long before,
                                       @Param("limit") int limit);
 

@@ -19,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-// F-04 投稿作成 / F-03 タイムライン / F-11 投稿削除。すべてログインが必要
+// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-11 投稿削除。すべてログインが必要
 @RestController
 public class PostController {
 
@@ -50,6 +50,12 @@ public class PostController {
     public HasNewPostsResponse hasNew(@RequestParam(required = false) Long after,
                                       @AuthenticationPrincipal AuthUser me) {
         return new HasNewPostsResponse(postService.hasNewPosts(me.getId(), after));
+    }
+
+    // 投稿詳細。フォローしていない人の投稿も見られる
+    @GetMapping("/api/posts/{postId}")
+    public PostResponse findById(@PathVariable Long postId, @AuthenticationPrincipal AuthUser me) {
+        return postService.findById(postId, me.getId());
     }
 
     @DeleteMapping("/api/posts/{postId}")

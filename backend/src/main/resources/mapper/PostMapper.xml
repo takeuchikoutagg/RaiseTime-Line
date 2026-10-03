@@ -15,13 +15,33 @@
     </select>
 
     <!--
+        タイムライン・投稿詳細で出す列。投稿者の名前と、いいね数・コメント数・見ている人（viewerId）がいいね済みか。
+        件数は相関サブクエリで、1回の SQL の中で投稿ごとに数える（投稿ごとに SQL を投げ直す N+1 問題を避ける）。
+        likes (post_id)・comments (post_id, id)・likes UNIQUE(user_id, post_id) のインデックスが使われる
+    -->
+    <sql id="postWithAuthorColumns">
+        p.id, p.user_id, p.body, p.edited_at, p.created_at, p.updated_at,
+        u.username AS author_username,
+        u.name AS author_name,
+        (SELECT count(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
+        (SELECT count(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
+        EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = #{viewerId}) AS liked_by_me
+    </sql>
+
+    <!-- 投稿詳細（F-05）。フォローしていない人の投稿も見られる -->
+    <select id="findDetailById" resultType="com.example.raisetime.entity.PostWithAuthor">
+        SELECT <include refid="postWithAuthorColumns"/>
+        FROM posts p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.id = #{postId}
+    </select>
+
+    <!--
         タイムライン（F-03）：自分の投稿と、フォロー中の人の投稿。
         id は作成順に増えるので、「新しい順」と「この id より古いもの（カーソル）」には id を使う
     -->
     <select id="findTimeline" resultType="com.example.raisetime.entity.PostWithAuthor">
-        SELECT p.id, p.user_id, p.body, p.edited_at, p.created_at, p.updated_at,
-               u.username AS author_username,
-               u.name AS author_name
+        SELECT <include refid="postWithAuthorColumns"/>
         FROM posts p
         JOIN users u ON u.id = p.user_id
         WHERE (p.user_id = #{viewerId}

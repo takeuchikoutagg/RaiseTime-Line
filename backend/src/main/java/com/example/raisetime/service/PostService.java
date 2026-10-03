@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-// F-04 投稿作成 / F-03 タイムライン / F-11 投稿削除
+// F-04 投稿作成 / F-03 タイムライン / F-05 投稿詳細 / F-11 投稿削除
 @Service
 public class PostService {
 
@@ -93,7 +93,8 @@ public class PostService {
             saved.add(postImage);
         }
 
-        return toResponse(post, author.getUsername(), author.getName(), saved, author.getId());
+        // 作ったばかりなので、いいね・コメントは0件
+        return toResponse(post, author.getUsername(), author.getName(), saved, 0, 0, false, author.getId());
     }
 
     private static void validateBody(String body) {
@@ -147,8 +148,7 @@ public class PostService {
                         .collect(Collectors.groupingBy(PostImage::getPostId));
 
         List<PostResponse> items = page.stream()
-                .map(post -> toResponse(post, post.getAuthorUsername(), post.getAuthorName(),
-                        imagesByPost.getOrDefault(post.getId(), List.of()), viewerId))
+                .map(post -> toResponse(post, imagesByPost.getOrDefault(post.getId(), List.of()), viewerId))
                 .toList();
         return new TimelineResponse(items, hasMore ? page.getLast().getId() : null);
     }
@@ -157,6 +157,18 @@ public class PostService {
     @Transactional(readOnly = true)
     public boolean hasNewPosts(Long viewerId, Long after) {
         return postMapper.existsTimelineNewerThan(viewerId, after == null ? 0L : after);
+    }
+
+    // ---------- F-05 投稿詳細 ----------
+
+    // ログインしていれば、フォローしていない人の投稿も見られる
+    @Transactional(readOnly = true)
+    public PostResponse findById(Long postId, Long viewerId) {
+        PostWithAuthor post = postMapper.findDetailById(postId, viewerId);
+        if (post == null) {
+            throw new NotFoundException(POST_NOT_FOUND);
+        }
+        return toResponse(post, postImageMapper.findByPostIds(List.of(postId)), viewerId);
     }
 
     // ---------- F-11 投稿削除 ----------
@@ -183,15 +195,20 @@ public class PostService {
 
     // ---------- 共通 ----------
 
+    private PostResponse toResponse(PostWithAuthor post, List<PostImage> images, Long viewerId) {
+        return toResponse(post, post.getAuthorUsername(), post.getAuthorName(), images, post.getLikeCount(),
+                post.getCommentCount(), post.isLikedByMe(), viewerId);
+    }
+
     private PostResponse toResponse(Post post, String authorUsername, String authorName, List<PostImage> images,
-                                    Long viewerId) {
+                                    long likeCount, long commentCount, boolean likedByMe, Long viewerId) {
         List<PostResponse.Image> imageResponses = images.stream()
                 .map(image -> new PostResponse.Image(image.getId(), imageStorage.publicUrl(image.getS3Key()),
                         image.getPosition()))
                 .toList();
         return new PostResponse(post.getId(), post.getBody(), post.getCreatedAt(), post.getEditedAt(),
-                new PostResponse.Author(authorUsername, authorName), imageResponses,
-                post.getUserId().equals(viewerId));
+                new PostResponse.Author(authorUsername, authorName), imageResponses, likeCount, commentCount,
+                likedByMe, post.getUserId().equals(viewerId));
     }
 
     private void deleteQuietly(String key) {

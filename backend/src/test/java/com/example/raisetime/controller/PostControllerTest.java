@@ -53,7 +53,7 @@ class PostControllerTest {
     private static final AuthUser TARO = new AuthUser(1L, "taro_dev", "山田太郎", null);
     private static final PostResponse SAMPLE = new PostResponse(10L, "こんにちは", Instant.parse("2026-10-01T00:00:00Z"),
             null, new PostResponse.Author("taro_dev", "山田太郎"),
-            List.of(new PostResponse.Image(100L, "http://img/posts/10/a.png", 1)), true);
+            List.of(new PostResponse.Image(100L, "http://img/posts/10/a.png", 1)), 3, 1, false, true);
 
     @Autowired
     private MockMvc mockMvc;
@@ -79,6 +79,7 @@ class PostControllerTest {
     @Test
     void allApis_withoutLogin_return401() throws Exception {
         mockMvc.perform(get("/api/timeline")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/posts/1")).andExpect(status().isUnauthorized());
         mockMvc.perform(multipart("/api/posts").param("body", "x").with(csrf())).andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/api/posts/1").with(csrf())).andExpect(status().isUnauthorized());
     }
@@ -109,6 +110,9 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.editedAt").isEmpty())
                 .andExpect(jsonPath("$.author.username").value("taro_dev"))
                 .andExpect(jsonPath("$.images[0].url").value("http://img/posts/10/a.png"))
+                .andExpect(jsonPath("$.likeCount").value(3))
+                .andExpect(jsonPath("$.commentCount").value(1))
+                .andExpect(jsonPath("$.likedByMe").value(false))
                 .andExpect(jsonPath("$.isMine").value(true))
                 // インプレッション数などは返さない
                 .andExpect(jsonPath("$.impressions").doesNotExist());
@@ -216,6 +220,30 @@ class PostControllerTest {
     @Test
     void timeline_nonNumericBefore_returns400() throws Exception {
         mockMvc.perform(get("/api/timeline").param("before", "abc").cookie(loggedIn))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ---------- 投稿詳細 ----------
+
+    @Test
+    void findById_returnsPost() throws Exception {
+        when(postService.findById(10L, 1L)).thenReturn(SAMPLE);
+
+        mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.likeCount").value(3))
+                .andExpect(jsonPath("$.commentCount").value(1));
+    }
+
+    @Test
+    void findById_missingPost_returns404_andNonNumericId_returns400() throws Exception {
+        when(postService.findById(10L, 1L)).thenThrow(new NotFoundException("投稿が見つかりません"));
+
+        mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("投稿が見つかりません"));
+        mockMvc.perform(get("/api/posts/abc").cookie(loggedIn))
                 .andExpect(status().isBadRequest());
     }
 
