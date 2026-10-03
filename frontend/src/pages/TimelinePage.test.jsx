@@ -1,7 +1,7 @@
 import { act, cleanup, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { checkNewPosts, createPost, deletePost, fetchTimeline } from '../api/posts.js'
+import { checkNewPosts, createPost, deletePost, fetchTimeline, likePost } from '../api/posts.js'
 import App from '../App.jsx'
 import { installIntersectionObserverMock } from '../test/intersectionObserver.js'
 import { renderWithAuth } from '../test/renderWithAuth.jsx'
@@ -12,6 +12,8 @@ vi.mock('../api/posts.js', () => ({
   checkNewPosts: vi.fn(),
   createPost: vi.fn(),
   deletePost: vi.fn(),
+  likePost: vi.fn(),
+  unlikePost: vi.fn(),
 }))
 
 const taro = { username: 'taro_dev', name: '山田太郎' }
@@ -24,6 +26,9 @@ function post(id, overrides = {}) {
     editedAt: null,
     author: { username: 'taro_dev', name: '山田太郎' },
     images: [],
+    likeCount: 0,
+    commentCount: 0,
+    likedByMe: false,
     isMine: true,
     ...overrides,
   }
@@ -37,7 +42,8 @@ describe('TimelinePage', () => {
   let io
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    // 前のテストで使われなかった mockResolvedValueOnce が残らないよう、呼び出し履歴だけでなく返す値も消す
+    vi.resetAllMocks()
     io = installIntersectionObserverMock()
     vi.mocked(checkNewPosts).mockResolvedValue({ hasNew: false })
     window.scrollTo = vi.fn()
@@ -245,5 +251,21 @@ describe('TimelinePage', () => {
 
     await screen.findByText('佐藤花子')
     expect(screen.queryByRole('button', { name: 'メニュー' })).not.toBeInTheDocument()
+  })
+
+  // ---------- いいね ----------
+
+  it('タイムラインでいいねすると、その投稿の数だけ変わる', async () => {
+    vi.mocked(fetchTimeline).mockResolvedValue({ items: [post(2), post(1)], nextCursor: null })
+    vi.mocked(likePost).mockResolvedValue({ likeCount: 1, likedByMe: true })
+    const { user } = renderTimeline()
+    const target = (await screen.findByText('投稿1')).closest('article')
+
+    await user.click(within(target).getByRole('button', { name: 'いいね' }))
+
+    expect(likePost).toHaveBeenCalledWith(1)
+    expect(within(target).getByRole('button', { name: 'いいね' })).toHaveTextContent('♥ 1')
+    const other = screen.getByText('投稿2').closest('article')
+    expect(within(other).getByRole('button', { name: 'いいね' })).toHaveTextContent('♡ 0')
   })
 })

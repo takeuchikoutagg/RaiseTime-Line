@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { checkNewPosts, fetchTimeline } from '../api/posts.js'
 import { useAuth } from '../auth/useAuth.js'
@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar/Avatar.jsx'
 import DeleteConfirmModal from '../components/DeleteConfirmModal/DeleteConfirmModal.jsx'
 import Loading from '../components/Loading/Loading.jsx'
 import PostCard from '../components/PostCard/PostCard.jsx'
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js'
 import styles from './TimelinePage.module.css'
 
 // 新しい投稿があるかを確かめる間隔
@@ -26,8 +27,9 @@ export default function TimelinePage() {
   const [showingNew, setShowingNew] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [addedPostId, setAddedPostId] = useState(null)
-  const sentinelRef = useRef(null)
+  // 開いた時点ですでにある createdPost（投稿詳細などから戻ってきたときの、前に作った投稿）は足さない。
+  // 最初の読み込みで、サーバーから最新の一覧を取るため
+  const [addedPostId, setAddedPostId] = useState(() => createdPost?.id ?? null)
 
   // 表示中の一番新しい投稿の id。新しい投稿があるかは、これより新しいものを探す
   const newestId = posts[0]?.id ?? 0
@@ -84,20 +86,11 @@ export default function TimelinePage() {
     }
   }, [nextCursor])
 
-  // 一覧の一番下の目印（sentinel）が画面に近づいたら、次の20件を読み込む
-  useEffect(() => {
-    const sentinel = sentinelRef.current
-    if (status !== 'ready' || nextCursor == null || loadingMore || moreError || !sentinel) return undefined
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) loadMore()
-      },
-      // 一番下に着く少し手前（200px）で読み込み始める
-      { rootMargin: '200px' },
-    )
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [status, nextCursor, loadingMore, moreError, loadMore])
+  // 一覧の一番下の目印（sentinel）が画面に近づいたら（200px 手前）、次の20件を読み込む
+  const sentinelRef = useInfiniteScroll({
+    enabled: status === 'ready' && nextCursor != null && !loadingMore && !moreError,
+    onLoadMore: loadMore,
+  })
 
   // ---------- 新しい投稿のお知らせ ----------
 
@@ -150,6 +143,11 @@ export default function TimelinePage() {
     }
   }
 
+  // いいねなどで投稿の一部が変わったら、一覧のその投稿だけ書き換える
+  const handleUpdate = useCallback((postId, changes) => {
+    setPosts((current) => current.map((p) => (p.id === postId ? { ...p, ...changes } : p)))
+  }, [])
+
   function handleDeleted(postId) {
     setPosts((current) => current.filter((p) => p.id !== postId))
     setDeleting(null)
@@ -190,7 +188,7 @@ export default function TimelinePage() {
       {status === 'ready' && (
         <>
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} onDeleteRequest={setDeleting} />
+            <PostCard key={post.id} post={post} onUpdate={handleUpdate} onDeleteRequest={setDeleting} />
           ))}
           {/* この目印が画面に近づいたら、次の20件を読み込む */}
           <div ref={sentinelRef} data-testid="timeline-sentinel" />
