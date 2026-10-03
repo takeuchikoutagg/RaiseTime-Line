@@ -1,14 +1,18 @@
 import { useCallback, useState } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../../auth/useAuth.js'
 import ComposeModal from '../ComposeModal/ComposeModal.jsx'
 import styles from './AppLayout.module.css'
 
 // ログイン後の画面の共通部分（docs/画面設計.md 3章の共通ヘッダー）。
-// 検索・マイページは、その機能ができてから足す。
+// 検索は、その機能（F-09）ができてから足す。
 // 投稿モーダルはヘッダーの「投稿」ボタンからも開くので、ここで持つ。作成した投稿は Outlet の context で画面に渡す
+function navLinkClass({ isActive }) {
+  return isActive ? `${styles.navLink} ${styles.active}` : styles.navLink
+}
+
 export default function AppLayout() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [composeOpen, setComposeOpen] = useState(false)
@@ -39,9 +43,13 @@ export default function AppLayout() {
             RaiseTime Line
           </Link>
           <nav className={styles.nav} aria-label="メイン">
-            <Link to="/" className={styles.navLink}>
+            {/* 今いるページのボタンを太字にする（prototype の is-active。NavLink が aria-current="page" も付ける） */}
+            <NavLink to="/" end className={navLinkClass}>
               ホーム
-            </Link>
+            </NavLink>
+            <NavLink to={`/users/${encodeURIComponent(user.username)}`} className={navLinkClass}>
+              マイページ
+            </NavLink>
             <button type="button" className={`${styles.navLink} ${styles.postButton}`} onClick={openCompose}>
               投稿
             </button>

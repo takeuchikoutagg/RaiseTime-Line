@@ -52,6 +52,11 @@
   text-decoration: none;
 }
 
+/* 今いるページ（prototype の .app-nav__link.is-active） */
+.active {
+  font-weight: 700;
+}
+
 .navLink:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -95,5 +100,33 @@
 
   .main {
     border: none;
+  }
+}
+
+/* iPhone SE などの狭い画面（〜420px）でも、ヘッダーのボタン（ホーム・マイページ・投稿・ログアウト）が横にはみ出さないようにする */
+@media (max-width: 420px) {
+  .headerInner {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .logo {
+    font-size: 0.9rem;
+  }
+
+  .navLink {
+    padding: 6px 7px;
+    font-size: 0.78rem;
+  }
+}
+
+/* さらに狭い画面（〜360px）では、ロゴを隠してボタンを1列に収める（ロゴと同じ行き先の「ホーム」があるため） */
+@media (max-width: 360px) {
+  .logo {
+    display: none;
+  }
+
+  .headerInner {
+    justify-content: center;
   }
 }

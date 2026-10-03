@@ -1,0 +1,62 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+/* prototype の .btn */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 未フォロー：prototype の .btn--primary */
+.follow {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.follow:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+/* フォロー中：マウスを乗せると赤枠の「フォロー解除」に変わる（prototype の .btn-follow.is-following） */
+.hover {
+  display: none;
+}
+
+.following:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: var(--color-bg);
+}
+
+.following:hover:not(:disabled) .default {
+  display: none;
+}
+
+.following:hover:not(:disabled) .hover {
+  display: inline;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.8rem;
+}

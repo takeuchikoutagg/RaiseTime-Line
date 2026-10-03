@@ -92,7 +92,7 @@ describe('TimelinePage', () => {
     renderTimeline()
     await screen.findByText('投稿3')
 
-    act(() => io.scrollToBottom())
+    await io.scrollToBottomWhenObserved()
 
     expect(await screen.findByText('投稿1')).toBeInTheDocument()
     expect(fetchTimeline).toHaveBeenLastCalledWith(2)
@@ -120,7 +120,7 @@ describe('TimelinePage', () => {
     const { user } = renderTimeline()
     await screen.findByText('投稿3')
 
-    act(() => io.scrollToBottom())
+    await io.scrollToBottomWhenObserved()
     const retry = await screen.findByRole('button', { name: '再読み込み' })
     act(() => io.scrollToBottom())
     expect(fetchTimeline).toHaveBeenCalledTimes(2)

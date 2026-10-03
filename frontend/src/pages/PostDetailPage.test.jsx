@@ -1,4 +1,4 @@
-import { act, cleanup, screen, within } from '@testing-library/react'
+import { cleanup, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.js'
@@ -97,6 +97,8 @@ describe('PostDetailPage', () => {
     expect(screen.getByLabelText('コメント', { selector: 'textarea' })).toBeInTheDocument()
     expect(commentBodies()).toEqual(['コメント1', 'コメント2'])
     expect(screen.getAllByText('鈴木一郎')).toHaveLength(2)
+    // コメントした人の名前は、その人のユーザーページへのリンク
+    expect(screen.getAllByRole('link', { name: '鈴木一郎' })[0]).toHaveAttribute('href', '/users/ichiro')
   })
 
   it('コメントが無いときは「まだコメントはありません」', async () => {
@@ -176,7 +178,7 @@ describe('PostDetailPage', () => {
     expect(screen.getByLabelText(/^コメント \d+件$/, { selector: 'span' })).toHaveTextContent('💬 22')
     expect(commentBodies()).toEqual(['コメント1'])
 
-    act(() => io.scrollToBottom())
+    await io.scrollToBottomWhenObserved()
     expect(await screen.findByText('新しいコメント')).toBeInTheDocument()
     expect(commentBodies()).toEqual(['コメント1', 'コメント2', '新しいコメント'])
   })
@@ -189,7 +191,7 @@ describe('PostDetailPage', () => {
     renderDetail()
     await screen.findByText('コメント1')
 
-    act(() => io.scrollToBottom())
+    await io.scrollToBottomWhenObserved()
 
     expect(await screen.findByText('コメント3')).toBeInTheDocument()
     expect(fetchComments).toHaveBeenLastCalledWith('10', 2)
@@ -207,7 +209,7 @@ describe('PostDetailPage', () => {
     const { user } = renderDetail()
     await screen.findByText('コメント1')
 
-    act(() => io.scrollToBottom())
+    await io.scrollToBottomWhenObserved()
     await user.click(await screen.findByRole('button', { name: '再読み込み' }))
 
     expect(await screen.findByText('コメント2')).toBeInTheDocument()

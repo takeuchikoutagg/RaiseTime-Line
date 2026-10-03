@@ -13,15 +13,23 @@ import styles from './PostCard.module.css'
 export default function PostCard({ post, onDeleteRequest, onUpdate, detail = false }) {
   const { author, images } = post
   const detailPath = `/posts/${post.id}`
+  const userPath = `/users/${encodeURIComponent(author.username)}`
   const body = <p className={styles.body}>{post.body}</p>
 
   return (
     <article className={`${styles.post} ${detail ? styles.detail : styles.clickable}`} aria-label={`${author.name}の投稿`}>
-      <Avatar username={author.username} name={author.name} />
+      {/* アバター・名前・@ユーザーID は、投稿した人のユーザーページ（S-06）へのリンク（prototype と同じ） */}
+      <Link to={userPath} className={styles.avatarLink} aria-label={`${author.name}のページ`}>
+        <Avatar username={author.username} name={author.name} />
+      </Link>
       <div className={styles.main}>
         <div className={styles.header}>
-          <span className={styles.name}>{author.name}</span>
-          <span className={styles.username}>@{author.username}</span>
+          <Link to={userPath} className={styles.name}>
+            {author.name}
+          </Link>
+          <Link to={userPath} className={styles.username}>
+            @{author.username}
+          </Link>
           <span aria-hidden="true">·</span>
           <time dateTime={post.createdAt} title={formatDateTime(post.createdAt)}>
             {detail ? formatDateTime(post.createdAt) : formatRelativeTime(post.createdAt)}
