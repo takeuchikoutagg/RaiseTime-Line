@@ -61,6 +61,14 @@ class SignupRequestValidationTest {
     }
 
     @Test
+    void name_withLineBreakTabOrControlCharacter_isInvalid() {
+        for (String name : new String[] {"山田\n太郎", "山田\t太郎", "山田\u0007"}) {
+            assertThat(invalidFields(new SignupRequest(name, "taro_dev", "taro@example.com", "password123")))
+                    .containsExactly("name");
+        }
+    }
+
+    @Test
     void username_mustBeLowercaseAlphanumericOrUnderscore_3to15() {
         assertThat(invalidFields(new SignupRequest("太郎", "ab", "taro@example.com", "password123")))
                 .containsExactly("username");

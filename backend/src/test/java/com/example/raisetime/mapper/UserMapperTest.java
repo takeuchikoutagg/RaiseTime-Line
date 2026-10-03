@@ -119,4 +119,13 @@ class UserMapperTest {
         assertThatThrownBy(() -> userMapper.updateProfile(b.getId(), "名前", "um_a", "", null))
                 .isInstanceOf(DuplicateKeyException.class);
     }
+
+    @Test
+    void findByIdForUpdate_returnsUserOrNull() {
+        User user = newUser("um_lock", "um_lock@example.com");
+        userMapper.insert(user);
+
+        assertThat(userMapper.findByIdForUpdate(user.getId()).getUsername()).isEqualTo("um_lock");
+        assertThat(userMapper.findByIdForUpdate(-1L)).isNull();
+    }
 }

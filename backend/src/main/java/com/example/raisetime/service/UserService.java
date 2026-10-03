@@ -14,6 +14,7 @@ import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
 import com.example.raisetime.validation.LineBreaks;
+import com.example.raisetime.validation.NoControlCharactersValidator;
 import com.example.raisetime.validation.VisibleText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,13 +96,17 @@ public class UserService {
     @Transactional
     public UserProfileResponse updateProfile(Long userId, String name, String username, String bio,
                                              MultipartFile avatar, boolean removeAvatar) {
-        User user = userMapper.findById(userId);
+        // 同じユーザーのプロフィール編集が同時に走らないよう、行をロックして取る。
+        // ロックしないと、2つの保存がどちらも同じ「古い画像」を見て、片方が上げた新しい画像が S3 に残ってしまう
+        User user = userMapper.findByIdForUpdate(userId);
         if (user == null) {
             throw new NotFoundException(USER_NOT_FOUND);
         }
         // multipart で届く改行（CRLF）を LF にそろえてから、チェック・保存する
         String newName = name == null ? null : LineBreaks.normalize(name).strip();
-        if (newName == null || !VisibleText.hasVisibleCharacter(newName) || length(newName) > MAX_NAME_LENGTH) {
+        // 名前は1行で表示するので、改行・タブなどの制御文字は使えない（新規登録と同じ）
+        if (newName == null || !VisibleText.hasVisibleCharacter(newName) || length(newName) > MAX_NAME_LENGTH
+                || NoControlCharactersValidator.containsControlCharacter(newName)) {
             throw new InvalidInputException("name", NAME_MESSAGE);
         }
         if (username == null || !USERNAME_PATTERN.matcher(username).matches()) {
