@@ -13,6 +13,7 @@ import com.example.raisetime.exception.StorageException;
 import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
+import com.example.raisetime.validation.LineBreaks;
 import com.example.raisetime.validation.VisibleText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,14 +95,15 @@ public class UserService {
         if (user == null) {
             throw new NotFoundException(USER_NOT_FOUND);
         }
-        String newName = name == null ? null : name.strip();
+        // multipart で届く改行（CRLF）を LF にそろえてから、チェック・保存する
+        String newName = name == null ? null : LineBreaks.normalize(name).strip();
         if (newName == null || !VisibleText.hasVisibleCharacter(newName) || length(newName) > MAX_NAME_LENGTH) {
             throw new InvalidInputException("name", NAME_MESSAGE);
         }
         if (username == null || !USERNAME_PATTERN.matcher(username).matches()) {
             throw new InvalidInputException("username", USERNAME_MESSAGE);
         }
-        String newBio = bio == null ? "" : bio;
+        String newBio = bio == null ? "" : LineBreaks.normalize(bio);
         if (length(newBio) > MAX_BIO_LENGTH) {
             throw new InvalidInputException("bio", BIO_MESSAGE);
         }

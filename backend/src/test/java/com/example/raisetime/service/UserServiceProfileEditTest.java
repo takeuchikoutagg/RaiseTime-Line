@@ -249,4 +249,15 @@ class UserServiceProfileEditTest {
                 .isInstanceOf(StorageException.class);
         verify(userMapper, never()).updateProfile(any(), any(), any(), any(), any());
     }
+
+    @Test
+    void update_crlfLineBreaksInBio_areSavedAsLf_andCountedAsOneCharacter() {
+        currentUser(null);
+        // 画面では「あ×80 ＋ 改行 ＋ あ×79」= 160文字
+        String bio = "あ".repeat(80) + "\r\n" + "あ".repeat(79);
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", bio, null, false);
+
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "あ".repeat(80) + "\n" + "あ".repeat(79), null);
+    }
 }

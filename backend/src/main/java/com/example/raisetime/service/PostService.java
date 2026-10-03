@@ -15,6 +15,7 @@ import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
+import com.example.raisetime.validation.LineBreaks;
 import com.example.raisetime.validation.VisibleText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,7 +67,9 @@ public class PostService {
     // ---------- F-04 投稿作成 ----------
 
     @Transactional
-    public PostResponse create(AuthUser author, String body, List<MultipartFile> files) {
+    public PostResponse create(AuthUser author, String rawBody, List<MultipartFile> files) {
+        // multipart で届く本文の改行（CRLF）を LF にそろえてから、チェック・保存する
+        String body = LineBreaks.normalize(rawBody);
         validateBody(body);
         List<ValidatedImage> images = validateImages(files, 0);
 
@@ -190,8 +193,9 @@ public class PostService {
     // 本文と画像を変える。投稿日時（created_at）は変えないので、タイムラインの並び順も変わらない。いいね・コメントはそのまま。
     // keepImageIds：今の画像のうち残すもの（送った順に並べる）。送らなかった画像は外す。files：追加する画像
     @Transactional
-    public PostResponse update(Long postId, AuthUser editor, String body, List<Long> keepImageIds,
+    public PostResponse update(Long postId, AuthUser editor, String rawBody, List<Long> keepImageIds,
                                List<MultipartFile> files) {
+        String body = LineBreaks.normalize(rawBody);
         // 同じ投稿への編集・削除が同時に走らないよう、行をロックして取る
         Post post = postMapper.findByIdForUpdate(postId);
         if (post == null) {

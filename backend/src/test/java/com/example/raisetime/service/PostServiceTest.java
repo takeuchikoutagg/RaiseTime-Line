@@ -555,4 +555,27 @@ class PostServiceTest {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("投稿が見つかりません");
     }
+
+    // ---------- 改行（multipart は CRLF で届く） ----------
+
+    @Test
+    void create_crlfLineBreaks_areSavedAsLf_andCountedAsOneCharacter() {
+        // 画面では「あ×139 ＋ 改行 ＋ あ×140」= 280文字。multipart で CRLF になって届いても受け付ける
+        String body = "あ".repeat(139) + "\r\n" + "あ".repeat(140);
+
+        postService.create(TARO, body, null);
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postMapper).insert(captor.capture());
+        assertThat(captor.getValue().getBody()).isEqualTo("あ".repeat(139) + "\n" + "あ".repeat(140));
+    }
+
+    @Test
+    void update_crlfLineBreaks_areSavedAsLf() {
+        editablePost(5, 1);
+
+        postService.update(5L, TARO, "1行目\r\n2行目", null, null);
+
+        verify(postMapper).updateBody(5L, "1行目\n2行目");
+    }
 }
