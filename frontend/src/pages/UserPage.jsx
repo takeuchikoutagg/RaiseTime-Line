@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import { fetchUser, fetchUserPosts } from '../api/users.js'
+import { useAuth } from '../auth/useAuth.js'
 import Avatar from '../components/Avatar/Avatar.jsx'
 import ComposeModal from '../components/ComposeModal/ComposeModal.jsx'
 import DeleteConfirmModal from '../components/DeleteConfirmModal/DeleteConfirmModal.jsx'
 import FollowButton from '../components/FollowButton/FollowButton.jsx'
 import Loading from '../components/Loading/Loading.jsx'
 import PostCard from '../components/PostCard/PostCard.jsx'
+import ProfileEditModal from '../components/ProfileEditModal/ProfileEditModal.jsx'
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js'
 import styles from './UserPage.module.css'
 
@@ -18,7 +20,10 @@ export default function UserPage() {
 }
 
 function UserProfile({ username }) {
+  const navigate = useNavigate()
+  const { updateUser } = useAuth()
   const [user, setUser] = useState(null)
+  const [editingProfile, setEditingProfile] = useState(false)
   const [posts, setPosts] = useState([])
   const [nextCursor, setNextCursor] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | notFound | error
@@ -85,6 +90,20 @@ function UserProfile({ username }) {
     setPosts((current) => current.map((p) => (p.id === postId ? { ...p, ...changes } : p)))
   }, [])
 
+  // プロフィールを編集したら、ページ・自分の投稿の名前とアイコン・ヘッダー（マイページ）を新しい内容にする。
+  // @ユーザーID を変えたら、新しい URL に移る（古い URL は使えなくなるため、履歴にも残さない）
+  function handleProfileSaved(saved) {
+    setEditingProfile(false)
+    updateUser({ username: saved.username, name: saved.name, avatarUrl: saved.avatarUrl })
+    if (saved.username !== user.username) {
+      navigate(`/users/${encodeURIComponent(saved.username)}`, { replace: true })
+      return
+    }
+    setUser(saved)
+    const author = { username: saved.username, name: saved.name, avatarUrl: saved.avatarUrl }
+    setPosts((current) => current.map((p) => (p.author.username === user.username ? { ...p, author } : p)))
+  }
+
   function handleSaved(saved) {
     setPosts((current) => current.map((p) => (p.id === saved.id ? saved : p)))
     setEditing(null)
@@ -122,14 +141,19 @@ function UserProfile({ username }) {
       <h1 className={styles.title}>{user.name}</h1>
       <section className={styles.profile} aria-label="プロフィール">
         <div className={styles.profileTop}>
-          <Avatar username={user.username} name={user.name} size="large" />
-          {/* 自分のページにはフォローボタンを出さない */}
-          {!user.isMe && (
+          <Avatar username={user.username} name={user.name} avatarUrl={user.avatarUrl} size="large" />
+          {/* 自分のページにはフォローボタンの代わりに「プロフィールを編集」を出す */}
+          {user.isMe ? (
+            <button type="button" className={styles.editProfile} onClick={() => setEditingProfile(true)}>
+              プロフィールを編集
+            </button>
+          ) : (
             <FollowButton username={user.username} followedByMe={user.followedByMe} onChange={handleFollowChange} />
           )}
         </div>
         <h2 className={styles.name}>{user.name}</h2>
         <div className={styles.username}>@{user.username}</div>
+        {user.bio && <p className={styles.bio}>{user.bio}</p>}
         <div className={styles.stats}>
           <span>
             <strong>{user.followingCount}</strong> フォロー
@@ -162,6 +186,9 @@ function UserProfile({ username }) {
         </div>
       )}
 
+      {editingProfile && (
+        <ProfileEditModal profile={user} onClose={() => setEditingProfile(false)} onSaved={handleProfileSaved} />
+      )}
       {editing && <ComposeModal post={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />}
       {deleting && (
         <DeleteConfirmModal post={deleting} onClose={() => setDeleting(null)} onDeleted={handleDeleted} />

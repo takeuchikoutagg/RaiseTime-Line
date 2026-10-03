@@ -20,7 +20,7 @@ export default function PostCard({ post, onDeleteRequest, onEditRequest, onUpdat
     <article className={`${styles.post} ${detail ? styles.detail : styles.clickable}`} aria-label={`${author.name}の投稿`}>
       {/* アバター・名前・@ユーザーID は、投稿した人のユーザーページ（S-06）へのリンク（prototype と同じ） */}
       <Link to={userPath} className={styles.avatarLink} aria-label={`${author.name}のページ`}>
-        <Avatar username={author.username} name={author.name} />
+        <Avatar username={author.username} name={author.name} avatarUrl={author.avatarUrl} />
       </Link>
       <div className={styles.main}>
         <div className={styles.header}>

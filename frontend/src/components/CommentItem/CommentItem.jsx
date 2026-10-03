@@ -11,7 +11,7 @@ export default function CommentItem({ comment }) {
   return (
     <article className={styles.comment} aria-label={`${author.name}のコメント`}>
       <Link to={userPath} className={styles.avatarLink} aria-label={`${author.name}のページ`}>
-        <Avatar username={author.username} name={author.name} size="small" />
+        <Avatar username={author.username} name={author.name} avatarUrl={author.avatarUrl} size="small" />
       </Link>
       <div className={styles.main}>
         <div className={styles.header}>

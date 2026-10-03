@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.js'
 import { checkNewPosts, deletePost, fetchTimeline } from '../api/posts.js'
-import { fetchUser, fetchUserPosts, followUser } from '../api/users.js'
+import { fetchUser, fetchUserPosts, followUser, updateProfile } from '../api/users.js'
 import App from '../App.jsx'
 import { installIntersectionObserverMock } from '../test/intersectionObserver.js'
 import { renderWithAuth } from '../test/renderWithAuth.jsx'
@@ -25,6 +25,7 @@ vi.mock('../api/users.js', () => ({
   fetchUserPosts: vi.fn(),
   followUser: vi.fn(),
   unfollowUser: vi.fn(),
+  updateProfile: vi.fn(),
 }))
 
 const taro = { username: 'taro_dev', name: '山田太郎' }
@@ -35,6 +36,8 @@ function profile(overrides = {}) {
     name: '佐藤花子',
     followingCount: 8,
     followerCount: 15,
+    bio: '',
+    avatarUrl: null,
     followedByMe: false,
     isMe: false,
     ...overrides,
@@ -78,8 +81,8 @@ describe('UserPage', () => {
     vi.unstubAllGlobals()
   })
 
-  function renderPage(route = '/users/hanako') {
-    return { user: userEvent.setup(), ...renderWithAuth(<App />, { auth: { user: taro }, route }) }
+  function renderPage(route = '/users/hanako', auth = {}) {
+    return { user: userEvent.setup(), ...renderWithAuth(<App />, { auth: { user: taro, ...auth }, route }) }
   }
 
   it('名前・@ユーザーID・フォロー数・フォロワー数・フォローボタン・投稿一覧を表示する', async () => {
@@ -234,5 +237,70 @@ describe('UserPage', () => {
 
     await screen.findByRole('region', { name: 'プロフィール' })
     expect(screen.getByRole('link', { name: 'マイページ' })).not.toHaveAttribute('aria-current')
+  })
+
+  // ---------- プロフィール（F-12） ----------
+
+  it('自己紹介文とプロフィール画像を表示する', async () => {
+    vi.mocked(fetchUser).mockResolvedValue(profile({ bio: 'ER図が好き\n2行目', avatarUrl: 'http://img/avatars/2/a.png' }))
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })
+    renderPage()
+
+    const section = await screen.findByRole('region', { name: 'プロフィール' })
+    // 改行はそのまま（white-space: pre-wrap で表示する）
+    expect(within(section).getByText(/ER図が好き/).textContent).toBe('ER図が好き\n2行目')
+    expect(section.querySelector('img')).toHaveAttribute('src', 'http://img/avatars/2/a.png')
+  })
+
+  it('自分のページだけ「プロフィールを編集」が出る（他の人のページはフォローボタン）', async () => {
+    vi.mocked(fetchUser).mockResolvedValue(profile())
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })
+    renderPage()
+
+    await screen.findByRole('button', { name: 'フォローする' })
+    expect(screen.queryByRole('button', { name: 'プロフィールを編集' })).not.toBeInTheDocument()
+  })
+
+  it('プロフィールを編集すると、ページ・自分の投稿の名前とアイコン・ログイン中のユーザーが新しい内容になる', async () => {
+    const me = profile({ username: 'taro_dev', name: '山田太郎', isMe: true })
+    vi.mocked(fetchUser).mockResolvedValue(me)
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [post(1, { author: taro, isMine: true })], nextCursor: null })
+    const saved = { ...me, name: '山田（改）', bio: 'よろしく', avatarUrl: 'http://img/avatars/1/a.png' }
+    vi.mocked(updateProfile).mockResolvedValue(saved)
+    const updateUser = vi.fn()
+    const { user } = renderPage('/users/taro_dev', { updateUser })
+
+    await user.click(await screen.findByRole('button', { name: 'プロフィールを編集' }))
+    await user.clear(screen.getByLabelText(/^名前/))
+    await user.type(screen.getByLabelText(/^名前/), '山田（改）')
+    await user.click(screen.getByRole('button', { name: '保存する' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '山田（改）' })).toBeInTheDocument()
+    expect(screen.getByText('よろしく')).toBeInTheDocument()
+    const article = screen.getByRole('article')
+    expect(within(article).getByRole('link', { name: '山田（改）' })).toBeInTheDocument()
+    expect(article.querySelector('img')).toHaveAttribute('src', 'http://img/avatars/1/a.png')
+    expect(updateUser).toHaveBeenCalledWith({
+      username: 'taro_dev',
+      name: '山田（改）',
+      avatarUrl: 'http://img/avatars/1/a.png',
+    })
+  })
+
+  it('@ユーザーID を変えたら、新しい URL のページに移る', async () => {
+    const me = profile({ username: 'taro_dev', name: '山田太郎', isMe: true })
+    vi.mocked(fetchUser).mockResolvedValueOnce(me).mockResolvedValueOnce({ ...me, username: 'taro_new' })
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })
+    vi.mocked(updateProfile).mockResolvedValue({ ...me, username: 'taro_new' })
+    const { user } = renderPage('/users/taro_dev')
+
+    await user.click(await screen.findByRole('button', { name: 'プロフィールを編集' }))
+    await user.clear(screen.getByLabelText(/^@ユーザーID/))
+    await user.type(screen.getByLabelText(/^@ユーザーID/), 'taro_new')
+    await user.click(screen.getByRole('button', { name: '保存する' }))
+
+    expect(await screen.findByText('@taro_new')).toBeInTheDocument()
+    expect(fetchUser).toHaveBeenLastCalledWith('taro_new')
   })
 })
