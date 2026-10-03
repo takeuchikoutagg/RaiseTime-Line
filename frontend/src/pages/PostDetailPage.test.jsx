@@ -11,6 +11,7 @@ import {
   fetchPost,
   fetchTimeline,
   likePost,
+  updatePost,
 } from '../api/posts.js'
 import App from '../App.jsx'
 import { installIntersectionObserverMock } from '../test/intersectionObserver.js'
@@ -26,6 +27,7 @@ vi.mock('../api/posts.js', () => ({
   unlikePost: vi.fn(),
   fetchComments: vi.fn(),
   createComment: vi.fn(),
+  updatePost: vi.fn(),
 }))
 
 const taro = { username: 'taro_dev', name: '山田太郎' }
@@ -228,6 +230,26 @@ describe('PostDetailPage', () => {
 
     expect(likePost).toHaveBeenCalledWith(10)
     expect(screen.getByRole('button', { name: /^いいね/ })).toHaveTextContent('♥ 3')
+  })
+
+  it('自分の投稿を編集すると、投稿本体が変わり「編集済み 日時」が出る（コメントはそのまま）', async () => {
+    vi.mocked(fetchPost).mockResolvedValue(post({ isMine: true, author: taro }))
+    vi.mocked(fetchComments).mockResolvedValue({ items: [comment(1)], nextCursor: null })
+    vi.mocked(updatePost).mockResolvedValue(
+      post({ isMine: true, author: taro, body: '直した本文', editedAt: '2026-09-26T12:05:00Z' }),
+    )
+    const { user } = renderDetail()
+    await screen.findByText('詳細の投稿')
+
+    await user.click(screen.getByRole('button', { name: 'メニュー' }))
+    await user.click(screen.getByRole('menuitem', { name: '編集' }))
+    await user.clear(screen.getByLabelText('本文'))
+    await user.type(screen.getByLabelText('本文'), '直した本文')
+    await user.click(screen.getByRole('button', { name: '保存する' }))
+
+    expect(await screen.findByText('直した本文')).toBeInTheDocument()
+    expect(screen.getByText(/^編集済み 2026\/09\/26 \d{2}:05$/)).toBeInTheDocument()
+    expect(commentBodies()).toEqual(['コメント1'])
   })
 
   it('自分の投稿を削除したら、タイムラインへ戻る', async () => {

@@ -10,7 +10,7 @@ import styles from './PostCard.module.css'
 // - detail=false（タイムライン）：日時は「3分前」、本文を押すと投稿詳細へ
 // - detail=true（投稿詳細）：日時は絶対表示、本文は大きめ、編集済みなら「編集済み 日時」も出す
 // いいね数などが変わったら onUpdate(postId, 変わった項目) で親に知らせ、親が一覧の投稿を書き換える
-export default function PostCard({ post, onDeleteRequest, onUpdate, detail = false }) {
+export default function PostCard({ post, onDeleteRequest, onEditRequest, onUpdate, detail = false }) {
   const { author, images } = post
   const detailPath = `/posts/${post.id}`
   const userPath = `/users/${encodeURIComponent(author.username)}`
@@ -66,7 +66,7 @@ export default function PostCard({ post, onDeleteRequest, onUpdate, detail = fal
           )}
         </div>
       </div>
-      {post.isMine && <PostMenu post={post} onDeleteRequest={onDeleteRequest} />}
+      {post.isMine && <PostMenu post={post} onEditRequest={onEditRequest} onDeleteRequest={onDeleteRequest} />}
     </article>
   )
 }
@@ -125,8 +125,8 @@ function LikeButton({ post, onUpdate }) {
   )
 }
 
-// 自分の投稿にだけ出す「…」メニュー。表示を切り替えるだけで、削除できるかは API が本人か確かめる
-function PostMenu({ post, onDeleteRequest }) {
+// 自分の投稿にだけ出す「…」メニュー（編集・削除）。表示を切り替えるだけで、編集・削除できるかは API が本人か確かめる
+function PostMenu({ post, onEditRequest, onDeleteRequest }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -154,6 +154,16 @@ function PostMenu({ post, onDeleteRequest }) {
       </button>
       {open && (
         <div className={styles.menuList} role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onEditRequest(post)
+            }}
+          >
+            編集
+          </button>
           <button
             type="button"
             role="menuitem"

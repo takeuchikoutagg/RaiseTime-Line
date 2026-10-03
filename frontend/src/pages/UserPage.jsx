@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { fetchUser, fetchUserPosts } from '../api/users.js'
 import Avatar from '../components/Avatar/Avatar.jsx'
+import ComposeModal from '../components/ComposeModal/ComposeModal.jsx'
 import DeleteConfirmModal from '../components/DeleteConfirmModal/DeleteConfirmModal.jsx'
 import FollowButton from '../components/FollowButton/FollowButton.jsx'
 import Loading from '../components/Loading/Loading.jsx'
@@ -24,6 +25,7 @@ function UserProfile({ username }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const [deleting, setDeleting] = useState(null)
+  const [editing, setEditing] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   // ユーザー情報と、投稿の最初の20件を同時に読み込む
@@ -83,6 +85,11 @@ function UserProfile({ username }) {
     setPosts((current) => current.map((p) => (p.id === postId ? { ...p, ...changes } : p)))
   }, [])
 
+  function handleSaved(saved) {
+    setPosts((current) => current.map((p) => (p.id === saved.id ? saved : p)))
+    setEditing(null)
+  }
+
   function handleDeleted(postId) {
     setPosts((current) => current.filter((p) => p.id !== postId))
     setDeleting(null)
@@ -135,7 +142,13 @@ function UserProfile({ username }) {
 
       {posts.length === 0 && <p className={styles.empty}>まだ投稿がありません</p>}
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} onUpdate={handleUpdate} onDeleteRequest={setDeleting} />
+        <PostCard
+          key={post.id}
+          post={post}
+          onUpdate={handleUpdate}
+          onEditRequest={setEditing}
+          onDeleteRequest={setDeleting}
+        />
       ))}
       {/* この目印が画面に近づいたら、次の20件を読み込む */}
       <div ref={sentinelRef} data-testid="user-posts-sentinel" />
@@ -149,6 +162,7 @@ function UserProfile({ username }) {
         </div>
       )}
 
+      {editing && <ComposeModal post={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />}
       {deleting && (
         <DeleteConfirmModal post={deleting} onClose={() => setDeleting(null)} onDeleted={handleDeleted} />
       )}
