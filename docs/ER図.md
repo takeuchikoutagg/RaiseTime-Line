@@ -243,18 +243,18 @@ GROUP BY post_id;
 ### ユーザー検索（F-09）
 
 ```sql
--- :q は前後の空白と先頭の@を除き、% と _ をエスケープ済みのキーワード
+-- :q は前後の空白と先頭の@を除いて小文字にし、% と _ と \ をエスケープ済みのキーワード
 SELECT u.username, u.name
 FROM users u
-WHERE u.username ILIKE '%' || :q || '%'
-   OR u.name     ILIKE '%' || :q || '%'
+WHERE u.username ILIKE '%' || :q || '%' ESCAPE '\'
+   OR u.name     ILIKE '%' || :q || '%' ESCAPE '\'
 ORDER BY
   CASE
     WHEN u.username = lower(:q)          THEN 0  -- 完全一致
     WHEN u.username LIKE lower(:q) || '%' THEN 1  -- 前方一致
     ELSE 2                                        -- 部分一致
   END,
-  u.username
+  u.username COLLATE "C"                          -- 照合順序に左右されないよう、文字コード順に固定する
 LIMIT 20 OFFSET :offset;
 ```
 

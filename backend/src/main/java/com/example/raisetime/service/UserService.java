@@ -3,8 +3,11 @@ package com.example.raisetime.service;
 import com.example.raisetime.dto.ErrorResponse.FieldErrorResponse;
 import com.example.raisetime.dto.TimelineResponse;
 import com.example.raisetime.dto.UserProfileResponse;
+import com.example.raisetime.dto.UserSearchResponse;
+import com.example.raisetime.dto.UserSummaryResponse;
 import com.example.raisetime.entity.User;
 import com.example.raisetime.entity.UserProfile;
+import com.example.raisetime.entity.UserSummary;
 import com.example.raisetime.exception.ConflictException;
 import com.example.raisetime.exception.InvalidInputException;
 import com.example.raisetime.exception.NotFoundException;
@@ -31,7 +34,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-// F-08 ユーザーページ / F-12 プロフィール編集。フォローしていない人のページも見られる
+// F-08 ユーザーページ / F-09 ユーザー検索 / F-12 プロフィール編集。フォローしていない人のページも見られる
 @Service
 public class UserService {
 
@@ -46,6 +49,9 @@ public class UserService {
     static final String USERNAME_MESSAGE = "@ユーザーIDは3〜15文字の半角英小文字・数字・_で入力してください";
     static final String USERNAME_TAKEN = "この@ユーザーIDはすでに使われています";
     static final String BIO_MESSAGE = "自己紹介は160文字以内で入力してください";
+    static final int MAX_QUERY_LENGTH = 50;
+    static final int SEARCH_PAGE_SIZE = 20;
+    static final String QUERY_MESSAGE = "検索キーワードは1〜50文字で入力してください";
     // プロフィール画像の上限。アイコンは小さく表示するだけなので、画面では 400×400px に縮めてから送る（数十〜100KB 程度）。
     // この上限は、画面を通さずに API を直接呼ばれたときの歯止め
     static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024;
@@ -79,6 +85,39 @@ public class UserService {
     @Transactional(readOnly = true)
     public TimelineResponse posts(String username, Long viewerId, Long before) {
         return postService.userPosts(requireUser(username).getId(), viewerId, before);
+    }
+
+    // ---------- F-09 ユーザー検索 ----------
+
+    // @ユーザーID か名前の部分一致で探す（大文字・小文字は区別しない）。20件ずつ、続きは offset 件目から
+    @Transactional(readOnly = true)
+    public UserSearchResponse search(String query, int offset, Long viewerId) {
+        // 前後の空白と、先頭の @ を取り除く（「@taro」でも「taro」でも同じ結果）
+        String keyword = query == null ? "" : query.strip();
+        if (keyword.startsWith("@")) {
+            keyword = keyword.substring(1).strip();
+        }
+        if (keyword.isEmpty() || length(keyword) > MAX_QUERY_LENGTH) {
+            throw new InvalidInputException("q", QUERY_MESSAGE);
+        }
+        if (offset < 0) {
+            throw new InvalidInputException("offset", QUERY_MESSAGE);
+        }
+        String lower = keyword.toLowerCase(Locale.ROOT);
+        // 1件多く取り、続きがあるかを判定する
+        List<UserSummary> rows = userMapper.search(lower, escapeLike(lower), viewerId, SEARCH_PAGE_SIZE + 1, offset);
+        boolean hasMore = rows.size() > SEARCH_PAGE_SIZE;
+        List<UserSummaryResponse> items = (hasMore ? rows.subList(0, SEARCH_PAGE_SIZE) : rows).stream()
+                .map(row -> new UserSummaryResponse(row.getUsername(), row.getName(), avatarUrl(row.getAvatarKey()),
+                        row.isFollowedByMe(), row.getId().equals(viewerId)))
+                .toList();
+        return new UserSearchResponse(items, hasMore ? offset + SEARCH_PAGE_SIZE : null);
+    }
+
+    // LIKE の特殊文字（% と _、エスケープに使う \）を、ただの文字として扱われるようにする。
+    // エスケープしないと「_」で検索したとき全員がヒットしてしまう
+    static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     User requireUser(String username) {
@@ -193,8 +232,12 @@ public class UserService {
         return value.codePointCount(0, value.length());
     }
 
+    private String avatarUrl(String avatarKey) {
+        return avatarKey == null ? null : imageStorage.publicUrl(avatarKey);
+    }
+
     private UserProfileResponse toResponse(UserProfile profile, Long viewerId) {
-        String avatarUrl = profile.getAvatarKey() == null ? null : imageStorage.publicUrl(profile.getAvatarKey());
+        String avatarUrl = avatarUrl(profile.getAvatarKey());
         return new UserProfileResponse(profile.getUsername(), profile.getName(), profile.getBio(), avatarUrl,
                 profile.getFollowingCount(), profile.getFollowerCount(), profile.isFollowedByMe(),
                 profile.getId().equals(viewerId));
