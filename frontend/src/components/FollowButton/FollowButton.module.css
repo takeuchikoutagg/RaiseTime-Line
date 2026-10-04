@@ -7,6 +7,7 @@
 
 /* prototype の .btn */
 .button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -53,6 +54,16 @@
 
 .following:hover:not(:disabled) .hover {
   display: inline;
+}
+
+/* 画面には出さず、読み上げでだけ読まれる文字 */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .error {

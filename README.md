@@ -85,7 +85,7 @@ docker-compose.yml … 開発用の PostgreSQL
 前提: Docker、Node.js、Java（`backend/` の Gradle Toolchain 設定により、ローカルに Java 25 が無くても自動で取得される）
 
 1. PostgreSQL と S3Mock（開発用の S3）を起動: `docker compose up -d`（ポート 5434 / 9090）
-2. バックエンドを起動: `backend/start.sh`（ポート 8081。使用中なら既存プロセスを停止してから `./gradlew bootRun` を起動する）
+2. バックエンドを起動: `backend/start.sh`（ポート 8081。使用中なら既存プロセスを停止してから `./gradlew bootRun` を起動する。開発用の設定（`dev` プロファイル＝`application-dev.properties`。JWT の秘密鍵など）を使う。本番は `JWT_SECRET` を設定しないと起動しない）
 3. フロントエンドを起動: 初回だけ `cd frontend && npm install`。その後 `frontend/start.sh`（ポート 5174。使用中なら既存プロセスを停止してから `npm run dev` を起動する）
 4. ブラウザで `http://localhost:5174` を開く → ログイン画面。新規登録するとそのままログインし、仮のホーム画面（Hello World）が出る
 

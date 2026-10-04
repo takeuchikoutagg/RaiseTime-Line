@@ -91,7 +91,8 @@ describe('SearchPage', () => {
     expect(within(me).getByText('あなた')).toBeInTheDocument()
     expect(within(me).queryByRole('button')).not.toBeInTheDocument()
     expect(within(other).getByRole('button', { name: /^フォロー中/ })).toBeInTheDocument()
-    expect(within(other).getByRole('link', { name: 'taro0123さん' })).toHaveAttribute('href', '/users/taro0123')
+    // 名前と @ID は1つのリンク
+    expect(within(other).getByRole('link', { name: /taro0123さん.*@taro0123/ })).toHaveAttribute('href', '/users/taro0123')
   })
 
   it('該当者がいなければ「該当するユーザーが見つかりません」', async () => {
@@ -175,7 +176,7 @@ describe('SearchPage', () => {
     const { user } = renderSearch()
 
     await user.type(screen.getByRole('searchbox', { name: 'ユーザー検索' }), 'hana')
-    await user.click(await screen.findByRole('link', { name: '佐藤花子' }))
+    await user.click(await screen.findByRole('link', { name: /佐藤花子.*@hanako/ }))
 
     expect(await screen.findByRole('region', { name: 'プロフィール' })).toBeInTheDocument()
     expect(fetchUser).toHaveBeenCalledWith('hanako')

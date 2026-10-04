@@ -7,6 +7,7 @@ import com.example.raisetime.exception.InvalidRefreshTokenException;
 import com.example.raisetime.security.AuthCookies;
 import com.example.raisetime.security.AuthTokenIssuer;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.security.LoginAttemptService;
 import com.example.raisetime.service.AuthService;
 import com.example.raisetime.service.EmailNormalizer;
 import com.example.raisetime.service.RefreshTokenService;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,15 +39,17 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final AuthTokenIssuer authTokenIssuer;
     private final AuthCookies authCookies;
+    private final LoginAttemptService loginAttemptService;
 
     public AuthController(AuthService authService, AuthenticationManager authenticationManager,
                           RefreshTokenService refreshTokenService, AuthTokenIssuer authTokenIssuer,
-                          AuthCookies authCookies) {
+                          AuthCookies authCookies, LoginAttemptService loginAttemptService) {
         this.authService = authService;
         this.authenticationManager = authenticationManager;
         this.refreshTokenService = refreshTokenService;
         this.authTokenIssuer = authTokenIssuer;
         this.authCookies = authCookies;
+        this.loginAttemptService = loginAttemptService;
     }
 
     // CSRF トークンの Cookie（XSRF-TOKEN）を発行する。画面を開いたときに最初に呼ぶ
@@ -69,10 +73,20 @@ public class AuthController {
     @PostMapping("/login")
     public UserResponse login(@Valid @RequestBody LoginRequest request,
                               HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        // 失敗すると AuthenticationException が投げられ、GlobalExceptionHandler で 401 になる
-        Authentication authentication = authenticationManager.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated(
-                        EmailNormalizer.normalize(request.email()), request.password()));
+        String email = EmailNormalizer.normalize(request.email());
+        // ログインの失敗が続いていたら、パスワードを確かめる前に 429 で止める（総当たり対策）
+        String ip = httpRequest.getRemoteAddr();
+        loginAttemptService.checkAllowed(email, ip);
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    UsernamePasswordAuthenticationToken.unauthenticated(email, request.password()));
+        } catch (AuthenticationException e) {
+            // 失敗を数えてから投げ直す（GlobalExceptionHandler で 401 になる）
+            loginAttemptService.recordFailure(email, ip);
+            throw e;
+        }
+        loginAttemptService.recordSuccess(email);
         AuthUser user = (AuthUser) authentication.getPrincipal();
         authTokenIssuer.issueForLogin(user, httpRequest, httpResponse);
         return authService.describe(user.getId()).orElseGet(() -> UserResponse.from(user));

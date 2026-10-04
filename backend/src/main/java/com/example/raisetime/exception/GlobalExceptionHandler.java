@@ -4,6 +4,7 @@ import com.example.raisetime.dto.ErrorResponse;
 import com.example.raisetime.dto.ErrorResponse.FieldErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -130,6 +131,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponse.of("UNAUTHORIZED", LOGIN_FAILED_MESSAGE));
+    }
+
+    // ログインの失敗が続いた（LoginAttemptService）。何秒後に試せるかを Retry-After ヘッダーで伝える
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex) {
+        long seconds = Math.max(1, (ex.getRetryAfter().toMillis() + 999) / 1000);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(seconds))
+                .body(ErrorResponse.of("TOO_MANY_REQUESTS", ex.getMessage()));
     }
 
     // トークンの更新に失敗した。画面はログイン画面へ移動する

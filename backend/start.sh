@@ -17,4 +17,6 @@ if [ -n "$PID" ]; then
 fi
 
 cd "$SCRIPT_DIR"
+# 開発用の設定（application-dev.properties）を使う
+export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-dev}"
 ./gradlew bootRun
