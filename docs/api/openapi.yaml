@@ -1,0 +1,1163 @@
+openapi: 3.1.0
+info:
+  description: |
+    RaiseTime Line（学習用のタイムライン型テキスト SNS）の REST API。
+    仕様の背景・業務ルールは docs/機能定義書/ を参照。
+
+    **ログイン**：アクセストークン（JWT）を `access_token` Cookie（HttpOnly）で受け取る。
+    Swagger UI で試すときは、POST /api/auth/login を実行すると以降の API がログインした状態で呼べる。
+
+    **CSRF**：POST・PUT・PATCH・DELETE は `X-XSRF-TOKEN` ヘッダーが必要。
+    先に GET /api/auth/csrf を実行して `XSRF-TOKEN` Cookie を受け取ると、Swagger UI が自動でヘッダーに入れて送る。
+  title: RaiseTime Line API
+  version: v1
+servers:
+- url: /
+tags:
+- description: 投稿へのいいね・いいね解除
+  name: 4. いいね（F-06）
+- description: 新規登録・ログイン・ログアウト・トークンの更新
+  name: 1. 認証（F-01・F-02）
+- description: 投稿へのコメント
+  name: 3. コメント（F-05）
+- description: ユーザーページ・フォロー・プロフィール編集
+  name: 5. ユーザー（F-07・F-08・F-12）
+- description: タイムライン・投稿の作成・詳細・編集・削除
+  name: 2. 投稿（F-03・F-04・F-10・F-11）
+- description: '@ユーザーID・名前でユーザーを探す'
+  name: 6. ユーザー検索（F-09）
+paths:
+  /api/auth/csrf:
+    get:
+      description: 画面を開いたときに最初に呼ぶ。POST などはこの値を X-XSRF-TOKEN ヘッダーで送る
+      operationId: csrf
+      responses:
+        "204":
+          description: No Content
+      summary: CSRF トークンの Cookie（XSRF-TOKEN）を受け取る
+      tags:
+      - 1. 認証（F-01・F-02）
+  /api/auth/login:
+    post:
+      description: アクセストークンとリフレッシュトークンを HttpOnly Cookie で返す。失敗が続くと 429
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインの失敗が続いた（TOO_MANY_REQUESTS）。Retry-After ヘッダーの秒数のあとに試せる
+      summary: ログインする
+      tags:
+      - 1. 認証（F-01・F-02）
+  /api/auth/logout:
+    post:
+      description: リフレッシュトークンを無効にし、トークンの Cookie を消す
+      operationId: logout
+      responses:
+        "204":
+          description: No Content
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+      summary: ログアウトする
+      tags:
+      - 1. 認証（F-01・F-02）
+  /api/auth/me:
+    get:
+      operationId: me
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+      security:
+      - cookieAuth: []
+      summary: ログイン中のユーザーを取得する
+      tags:
+      - 1. 認証（F-01・F-02）
+  /api/auth/refresh:
+    post:
+      description: アクセストークンの期限が切れたら呼ぶ。リフレッシュトークンを新しいものに交換する
+      operationId: refresh
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+      summary: トークンを更新する
+      tags:
+      - 1. 認証（F-01・F-02）
+  /api/auth/signup:
+    post:
+      description: 登録したらそのままログインした状態になる（トークンの Cookie を返す）
+      operationId: signup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: メールアドレス・@ユーザーID がすでに使われている（CONFLICT）
+      summary: 新規登録する
+      tags:
+      - 1. 認証（F-01・F-02）
+  /api/posts:
+    post:
+      description: multipart/form-data。body（本文、必須、1〜280文字）と images（画像、0〜4枚、1枚5MBまで）
+      operationId: create
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 画像が大きすぎる（PAYLOAD_TOO_LARGE）
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: サーバーのエラー、画像の保存の失敗（INTERNAL_ERROR）
+      security:
+      - cookieAuth: []
+      summary: 投稿する
+      tags:
+      - 2. 投稿（F-03・F-04・F-10・F-11）
+  /api/posts/{postId}:
+    delete:
+      description: 投稿者本人だけ（他人の投稿は 403）
+      operationId: delete
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: 投稿を削除する
+      tags:
+      - 2. 投稿（F-03・F-04・F-10・F-11）
+    get:
+      operationId: findById
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: 投稿詳細を取得する
+      tags:
+      - 2. 投稿（F-03・F-04・F-10・F-11）
+    patch:
+      description: 投稿者本人だけ（他人の投稿は 403）。multipart/form-data。body（本文、必須）・keepImageIds（残す画像の
+        id、複数可）・images（追加する画像）
+      operationId: update
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                keepImageIds:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 画像が大きすぎる（PAYLOAD_TOO_LARGE）
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: サーバーのエラー、画像の保存の失敗（INTERNAL_ERROR）
+      security:
+      - cookieAuth: []
+      summary: 投稿を編集する
+      tags:
+      - 2. 投稿（F-03・F-04・F-10・F-11）
+  /api/posts/{postId}/comments:
+    get:
+      description: "古い順に20件。続きは ?after={nextCursor}"
+      operationId: list
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: after
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentListResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: コメント一覧を取得する
+      tags:
+      - 3. コメント（F-05）
+    post:
+      operationId: create_1
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: コメントする
+      tags:
+      - 3. コメント（F-05）
+  /api/posts/{postId}/like:
+    delete:
+      description: いいねしていなくても成功する（冪等）
+      operationId: unlike
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: いいねを取り消す
+      tags:
+      - 4. いいね（F-06）
+    put:
+      description: 2回呼んでも1回分（冪等）
+      operationId: like
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: いいねする
+      tags:
+      - 4. いいね（F-06）
+  /api/search/users:
+    get:
+      description: "@ユーザーID か名前の部分一致で20件。続きは ?offset={nextOffset}"
+      operationId: searchUsers
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSearchResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+      security:
+      - cookieAuth: []
+      summary: ユーザーを検索する
+      tags:
+      - 6. ユーザー検索（F-09）
+  /api/timeline:
+    get:
+      description: "自分＋フォロー中の人の投稿を新しい順に20件。次のページは ?before={nextCursor}"
+      operationId: timeline
+      parameters:
+      - in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+      security:
+      - cookieAuth: []
+      summary: タイムラインを取得する
+      tags:
+      - 2. 投稿（F-03・F-04・F-10・F-11）
+  /api/timeline/has-new:
+    get:
+      description: 表示中の一番新しい投稿の id（after）より新しい投稿があるか。件数は返さない
+      operationId: hasNew
+      parameters:
+      - in: query
+        name: after
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HasNewPostsResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+      security:
+      - cookieAuth: []
+      summary: 新しい投稿があるか確かめる
+      tags:
+      - 2. 投稿（F-03・F-04・F-10・F-11）
+  /api/users/me:
+    patch:
+      description: multipart/form-data。name（表示名、必須）・username（@ユーザーID、必須）・bio（自己紹介文）・avatar（プロフィール画像、2MBまで）・removeAvatar（画像を外すか）
+      operationId: updateProfile
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                bio:
+                  type: string
+                name:
+                  type: string
+                removeAvatar:
+                  type: boolean
+                  default: false
+                username:
+                  type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: メールアドレス・@ユーザーID がすでに使われている（CONFLICT）
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 画像が大きすぎる（PAYLOAD_TOO_LARGE）
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: サーバーのエラー、画像の保存の失敗（INTERNAL_ERROR）
+      security:
+      - cookieAuth: []
+      summary: プロフィールを編集する
+      tags:
+      - 5. ユーザー（F-07・F-08・F-12）
+  /api/users/{username}:
+    get:
+      operationId: profile
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: ユーザーのプロフィールを取得する
+      tags:
+      - 5. ユーザー（F-07・F-08・F-12）
+  /api/users/{username}/follow:
+    delete:
+      description: フォローしていなくても成功する（冪等）
+      operationId: unfollow
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: フォローを解除する
+      tags:
+      - 5. ユーザー（F-07・F-08・F-12）
+    put:
+      description: 2回呼んでも1回分（冪等）。自分自身は 400
+      operationId: follow
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: フォローする
+      tags:
+      - 5. ユーザー（F-07・F-08・F-12）
+  /api/users/{username}/posts:
+    get:
+      description: "新しい順に20件。次のページは ?before={nextCursor}"
+      operationId: posts
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 入力内容・パラメーターに誤りがある（VALIDATION_ERROR / BAD_REQUEST）
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: ログインしていない、またはログインに失敗した（UNAUTHORIZED）
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+      security:
+      - cookieAuth: []
+      summary: ユーザーの投稿一覧を取得する
+      tags:
+      - 5. ユーザー（F-07・F-08・F-12）
+components:
+  schemas:
+    Author:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+        name:
+          type: string
+        username:
+          type: string
+    CommentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommentResponse"
+        nextCursor:
+          type: integer
+          format: int64
+    CommentResponse:
+      type: object
+      properties:
+        author:
+          $ref: "#/components/schemas/Author"
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+    CreateCommentRequest:
+      type: object
+      properties:
+        body:
+          type: string
+    ErrorResponse:
+      properties:
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldErrorResponse"
+        message:
+          type: string
+    FieldErrorResponse:
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    FollowResponse:
+      type: object
+      properties:
+        followedByMe:
+          type: boolean
+        followerCount:
+          type: integer
+          format: int64
+    HasNewPostsResponse:
+      type: object
+      properties:
+        hasNew:
+          type: boolean
+    Image:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        position:
+          type: integer
+          format: int32
+        url:
+          type: string
+    LikeResponse:
+      type: object
+      properties:
+        likeCount:
+          type: integer
+          format: int64
+        likedByMe:
+          type: boolean
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+      - email
+      - password
+    PostResponse:
+      type: object
+      properties:
+        author:
+          $ref: "#/components/schemas/Author"
+        body:
+          type: string
+        commentCount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        editedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/Image"
+        isMine:
+          type: boolean
+        likeCount:
+          type: integer
+          format: int64
+        likedByMe:
+          type: boolean
+    SignupRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+        name:
+          type: string
+          minLength: 1
+        password:
+          type: string
+        username:
+          type: string
+          pattern: "^[a-z0-9_]{3,15}$"
+      required:
+      - email
+      - name
+      - password
+      - username
+    TimelineResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PostResponse"
+        nextCursor:
+          type: integer
+          format: int64
+    UserProfileResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+        bio:
+          type: string
+        followedByMe:
+          type: boolean
+        followerCount:
+          type: integer
+          format: int64
+        followingCount:
+          type: integer
+          format: int64
+        isMe:
+          type: boolean
+        name:
+          type: string
+        username:
+          type: string
+    UserResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+        name:
+          type: string
+        username:
+          type: string
+    UserSearchResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSummaryResponse"
+        nextOffset:
+          type: integer
+          format: int32
+    UserSummaryResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+        followedByMe:
+          type: boolean
+        isMe:
+          type: boolean
+        name:
+          type: string
+        username:
+          type: string
+  securitySchemes:
+    cookieAuth:
+      description: ログインすると受け取るアクセストークン（JWT、15分）
+      in: cookie
+      name: access_token
+      type: apiKey

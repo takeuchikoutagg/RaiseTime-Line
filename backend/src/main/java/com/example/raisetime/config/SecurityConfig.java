@@ -4,6 +4,7 @@ import com.example.raisetime.security.AuthUserJwtAuthenticationConverter;
 import com.example.raisetime.security.CookieBearerTokenResolver;
 import com.example.raisetime.security.JsonAccessDeniedHandler;
 import com.example.raisetime.security.JsonAuthenticationEntryPoint;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -34,10 +35,13 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // ログインしなくても呼べる API（それ以外はすべてログイン必須）
-    private static final String[] PUBLIC_GET = {"/api/auth/csrf", "/actuator/health"};
-    private static final String[] PUBLIC_POST = {
+    // ログインしなくても呼べる API（それ以外はすべてログイン必須）。API 仕様書（OpenApiConfig）でも使う
+    static final String[] PUBLIC_GET = {"/api/auth/csrf", "/actuator/health"};
+    static final String[] PUBLIC_POST = {
         "/api/auth/signup", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout"};
+    // API 仕様書と Swagger UI（springdoc）。有効にしている開発のときだけ、ログインせずに見られるようにする
+    private static final String[] API_DOCS = {"/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+        "/swagger-ui.html", "/swagger-ui/**"};
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -46,13 +50,19 @@ public class SecurityConfig {
                                                    AuthUserJwtAuthenticationConverter jwtAuthenticationConverter,
                                                    CookieBearerTokenResolver bearerTokenResolver,
                                                    JsonAuthenticationEntryPoint authenticationEntryPoint,
-                                                   JsonAccessDeniedHandler accessDeniedHandler) {
+                                                   JsonAccessDeniedHandler accessDeniedHandler,
+                                                   @Value("${springdoc.api-docs.enabled:false}")
+                                                   boolean apiDocsEnabled) {
         http
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
-                        .requestMatchers("/error").permitAll()
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
+                            .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
+                            .requestMatchers("/error").permitAll();
+                    if (apiDocsEnabled) {
+                        auth.requestMatchers(HttpMethod.GET, API_DOCS).permitAll();
+                    }
+                    auth.anyRequest().authenticated();
+                })
                 // セッションは使わない（ログイン状態はリクエストごとに JWT で確認する）
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Cookie で認証するため CSRF 対策は必要。トークンを XSRF-TOKEN Cookie（JavaScript から読める）で渡し、

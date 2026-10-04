@@ -21,6 +21,7 @@ repositories {
 ext {
 	mybatisSpringBootVersion = '4.1.0'
 	awsSdkVersion = '2.55.9'
+	springdocVersion = '3.1.1'
 }
 
 dependencies {
@@ -36,6 +37,8 @@ dependencies {
 	// 投稿画像の保存先（本番は AWS S3、開発は S3 互換の S3Mock）
 	implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
 	implementation 'software.amazon.awssdk:s3'
+	// API 仕様書（OpenAPI）の自動生成と Swagger UI。開発（dev プロファイル）だけ有効にする
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
@@ -48,6 +51,23 @@ tasks.named('test') {
 	useJUnitPlatform()
 	// テストは開発用の設定（application-dev.properties）で動かす
 	systemProperty 'spring.profiles.active', 'dev'
+}
+
+// API 仕様書（docs/api/openapi.yaml）を作り直す。API を変えたら実行してコミットする（PostgreSQL の起動が必要）。
+// 中身は OpenApiDocumentTest を「書き出すモード」で動かしているだけ
+tasks.register('generateOpenApi', Test) {
+	description = 'API 仕様書（docs/api/openapi.yaml）を作り直す'
+	group = 'documentation'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	filter {
+		includeTestsMatching 'com.example.raisetime.OpenApiDocumentTest'
+	}
+	systemProperty 'spring.profiles.active', 'dev'
+	systemProperty 'openapi.write', 'true'
+	// 毎回必ず実行する（Gradle の「変更が無ければ飛ばす」を使わない）
+	outputs.upToDateWhen { false }
 }
 
 checkstyle {
