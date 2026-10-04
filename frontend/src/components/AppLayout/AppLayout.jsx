@@ -5,7 +5,6 @@ import ComposeModal from '../ComposeModal/ComposeModal.jsx'
 import styles from './AppLayout.module.css'
 
 // ログイン後の画面の共通部分（docs/画面設計.md 3章の共通ヘッダー）。
-// 検索は、その機能（F-09）ができてから足す。
 // 投稿モーダルはヘッダーの「投稿」ボタンからも開くので、ここで持つ。作成した投稿は Outlet の context で画面に渡す
 function navLinkClass({ isActive }) {
   return isActive ? `${styles.navLink} ${styles.active}` : styles.navLink
@@ -46,6 +45,9 @@ export default function AppLayout() {
             {/* 今いるページのボタンを太字にする（prototype の is-active。NavLink が aria-current="page" も付ける） */}
             <NavLink to="/" end className={navLinkClass}>
               ホーム
+            </NavLink>
+            <NavLink to="/search" className={navLinkClass}>
+              検索
             </NavLink>
             <NavLink to={`/users/${encodeURIComponent(user.username)}`} className={navLinkClass}>
               マイページ

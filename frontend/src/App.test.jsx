@@ -32,7 +32,9 @@ describe('App（ログイン状態による画面の出し分け）', () => {
 
     expect(screen.getByRole('navigation', { name: 'メイン' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ホーム' })).toBeInTheDocument()
-    expect(await screen.findByText('まだ投稿がありません。最初の投稿をしてみましょう')).toBeInTheDocument()
+    // 投稿が無いときは、ユーザー検索へ案内する
+    expect(await screen.findByText('ユーザーを検索してフォローすると、ここに投稿が表示されます')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'ユーザーを探す' })).toHaveAttribute('href', '/search')
   })
 
   it('ログイン中にログイン画面・新規登録画面を開くとホームへ移動する', () => {

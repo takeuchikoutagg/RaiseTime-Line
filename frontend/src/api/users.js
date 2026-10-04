@@ -1,6 +1,7 @@
 import { request } from './client.js'
 
-// ユーザーページ・フォロー・プロフィール編集の API（docs/機能定義書/F-08_ユーザーページ.md・F-07_フォロー.md・F-12_プロフィール編集.md）
+// ユーザーページ・フォロー・ユーザー検索・プロフィール編集の API
+// （docs/機能定義書/F-08_ユーザーページ.md・F-07_フォロー.md・F-09_ユーザー検索.md・F-12_プロフィール編集.md）
 
 function userPath(username) {
   return `/api/users/${encodeURIComponent(username)}`
@@ -40,4 +41,11 @@ export function updateProfile({ name, username, bio, avatar = null, removeAvatar
     form.append('removeAvatar', 'true')
   }
   return request('/api/users/me', { method: 'PATCH', body: form })
+}
+
+// { items: [UserSummary], nextOffset }。@ユーザーID・名前の部分一致で20件ずつ。続きは offset に nextOffset を渡す
+export function searchUsers(query, offset = 0) {
+  const params = new URLSearchParams({ q: query })
+  if (offset > 0) params.set('offset', String(offset))
+  return request(`/api/search/users?${params}`)
 }

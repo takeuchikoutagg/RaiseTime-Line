@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countChars, hasControlCharacter, hasVisibleText } from './text.js'
+import { countChars, hasControlCharacter, hasVisibleText, normalizeSearchQuery } from './text.js'
 
 describe('countChars', () => {
   it('絵文字も1文字と数える', () => {
@@ -36,5 +36,14 @@ describe('hasControlCharacter', () => {
     expect(hasControlCharacter('山田\n太郎')).toBe(true)
     expect(hasControlCharacter('ベル\u0007')).toBe(true)
     expect(hasControlCharacter('山田 太郎😀')).toBe(false)
+  })
+})
+
+describe('normalizeSearchQuery', () => {
+  it('前後の空白と、先頭の @ を取り除く', () => {
+    expect(normalizeSearchQuery('  @taro ')).toBe('taro')
+    expect(normalizeSearchQuery('@ taro')).toBe('taro')
+    expect(normalizeSearchQuery('山田 太郎')).toBe('山田 太郎')
+    expect(normalizeSearchQuery(' @ ')).toBe('')
   })
 })
