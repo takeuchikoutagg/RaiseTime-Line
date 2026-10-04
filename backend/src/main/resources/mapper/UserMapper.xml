@@ -48,6 +48,29 @@
         WHERE id = #{id}
     </update>
 
+    <!--
+        ユーザー検索（F-09）。大文字・小文字を区別しない部分一致（ILIKE）。pattern は % _ \ をエスケープ済み。
+        username・name の pg_trgm の GIN インデックス（V10）が使われる。
+        @ユーザーID は小文字だけなので、完全一致・前方一致は小文字にそろえた keyword と比べる
+    -->
+    <select id="search" resultType="com.example.raisetime.entity.UserSummary">
+        SELECT u.id, u.username, u.name, u.avatar_key,
+               EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = #{viewerId} AND f.followee_id = u.id)
+                   AS followed_by_me
+        FROM users u
+        WHERE u.username ILIKE '%' || #{pattern} || '%' ESCAPE '\'
+           OR u.name ILIKE '%' || #{pattern} || '%' ESCAPE '\'
+        ORDER BY
+            CASE
+                WHEN u.username = #{keyword} THEN 0
+                WHEN u.username LIKE #{pattern} || '%' ESCAPE '\' THEN 1
+                ELSE 2
+            END,
+            -- DB の照合順序（ロケール）によって「_」の並ぶ位置が変わるので、文字コード順（C）に固定する。開発と本番で並びをそろえるため
+            u.username COLLATE "C"
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <select id="existsByUsername" resultType="boolean">
         SELECT EXISTS (SELECT 1 FROM users WHERE username = #{username})
     </select>
