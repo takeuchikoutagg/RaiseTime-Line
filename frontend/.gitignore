@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# テストの網羅率のレポート（npx vitest run --coverage）
+coverage

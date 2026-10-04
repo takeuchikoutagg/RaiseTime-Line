@@ -149,9 +149,14 @@ span.action:hover {
   grid-template-columns: 1fr;
 }
 
+/*
+  1枚のときも枠の縦横比を決めておき、画像を読み込んでも高さが変わらない（下の投稿がずれない）ようにする。
+  画像の縦横比はいろいろなので、切り取らずに全体を枠の中に収める（余白は薄い灰色）
+*/
 .images1 img {
-  aspect-ratio: auto;
-  max-height: 480px;
+  max-height: none;
+  background: var(--color-surface);
+  object-fit: contain;
 }
 
 .images2,

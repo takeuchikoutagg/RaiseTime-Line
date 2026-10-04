@@ -46,6 +46,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// テストは開発用の設定（application-dev.properties）で動かす
+	systemProperty 'spring.profiles.active', 'dev'
 }
 
 checkstyle {

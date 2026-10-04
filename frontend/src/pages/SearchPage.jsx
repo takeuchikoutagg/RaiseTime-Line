@@ -140,14 +140,11 @@ function UserRow({ user, onFollowChange }) {
       <Link to={userPath} className={styles.avatarLink} aria-label={`${user.name}のページ`}>
         <Avatar username={user.username} name={user.name} avatarUrl={user.avatarUrl} />
       </Link>
-      <div className={styles.info}>
-        <Link to={userPath} className={styles.name}>
-          {user.name}
-        </Link>
-        <Link to={userPath} className={styles.username}>
-          @{user.username}
-        </Link>
-      </div>
+      {/* 名前と @ID をまとめて1つのリンクにする（別々の小さなリンクだと、スマホでタップしにくいため） */}
+      <Link to={userPath} className={styles.info}>
+        <span className={styles.name}>{user.name}</span>
+        <span className={styles.username}>@{user.username}</span>
+      </Link>
       {user.isMe ? (
         <span className={styles.me}>あなた</span>
       ) : (

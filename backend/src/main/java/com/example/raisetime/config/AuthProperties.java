@@ -19,7 +19,7 @@ public record AuthProperties(
 
     public AuthProperties {
         if (jwtSecret == null || jwtSecret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
-            throw new IllegalArgumentException("app.auth.jwt-secret は32バイト以上にしてください");
+            throw new IllegalArgumentException("JWT の秘密鍵（環境変数 JWT_SECRET）に32バイト以上の値を設定してください");
         }
     }
 }

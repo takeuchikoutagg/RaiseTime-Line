@@ -10,6 +10,7 @@ import com.example.raisetime.entity.User;
 import com.example.raisetime.exception.ConflictException;
 import com.example.raisetime.exception.GlobalExceptionHandler;
 import com.example.raisetime.exception.InvalidRefreshTokenException;
+import com.example.raisetime.exception.TooManyRequestsException;
 import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.security.AccessTokenService;
 import com.example.raisetime.security.AuthCookies;
@@ -21,6 +22,7 @@ import com.example.raisetime.security.CookieBearerTokenResolver;
 import com.example.raisetime.security.ErrorResponseWriter;
 import com.example.raisetime.security.JsonAccessDeniedHandler;
 import com.example.raisetime.security.JsonAuthenticationEntryPoint;
+import com.example.raisetime.security.LoginAttemptService;
 import com.example.raisetime.service.AuthService;
 import com.example.raisetime.service.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
@@ -42,6 +44,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +52,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,6 +63,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -95,6 +101,10 @@ class AuthControllerTest {
 
     @MockitoBean
     private RefreshTokenService refreshTokenService;
+
+    // 失敗回数の数え方は LoginAttemptServiceTest で確かめる。ここでは呼び出し方と 429 のレスポンスを確かめる
+    @MockitoBean
+    private LoginAttemptService loginAttemptService;
 
     @BeforeEach
     void setUp() {
@@ -300,6 +310,40 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.message").value("メールアドレスまたはパスワードが正しくありません"))
                 .andExpect(cookie().doesNotExist(AuthCookies.ACCESS_TOKEN));
         verify(refreshTokenService, never()).issue(anyLong());
+    }
+
+    @Test
+    void login_failure_isCounted_andSuccessResetsCount() throws Exception {
+        mockMvc.perform(post("/api/auth/login").with(csrf()).with(request -> {
+                    request.setRemoteAddr("203.0.113.1");
+                    return request;
+                })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequest(" Taro@Example.com", "wrong-password"))))
+                .andExpect(status().isUnauthorized());
+        verify(loginAttemptService).checkAllowed("taro@example.com", "203.0.113.1");
+        verify(loginAttemptService).recordFailure("taro@example.com", "203.0.113.1");
+        verify(loginAttemptService, never()).recordSuccess(anyString());
+
+        login();
+        verify(loginAttemptService).recordSuccess("taro@example.com");
+    }
+
+    @Test
+    void login_whileLocked_returns429_withoutCheckingPassword() throws Exception {
+        doThrow(new TooManyRequestsException(LoginAttemptService.class.getSimpleName(), Duration.ofMillis(90_500)))
+                .when(loginAttemptService).checkAllowed(anyString(), anyString());
+
+        // パスワードが正しくても止める
+        mockMvc.perform(post("/api/auth/login").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequest("taro@example.com", PASSWORD))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "91"))
+                .andExpect(jsonPath("$.code").value("TOO_MANY_REQUESTS"))
+                .andExpect(cookie().doesNotExist(AuthCookies.ACCESS_TOKEN));
+        verify(userMapper, never()).findByEmail(anyString());
+        verify(loginAttemptService, never()).recordFailure(anyString(), anyString());
     }
 
     @Test

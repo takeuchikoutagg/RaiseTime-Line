@@ -5,9 +5,19 @@
   --color-border: #e6ecf0;
   --color-text: #0f1419;
   --color-text-sub: #536471;
-  --color-primary: #1d9bf0;
-  --color-primary-hover: #1a8cd8;
-  --color-danger: #f4212e;
+  /*
+    色は文字が読みやすい明るさの差（コントラスト比 4.5:1 以上。WCAG AA）にする。
+    prototype の青（#1d9bf0）と赤（#f4212e）は白い背景・白い文字との差が足りない（3:1・4.1:1）ため、少し濃くしている
+  */
+  /* ボタンの背景（白い文字をのせる）・フォーカスの枠 */
+  --color-primary: #1a6fc4;
+  --color-primary-hover: #175fa8;
+  /* リンクの文字 */
+  --color-link: #1a6fc4;
+  /* エラー・削除などの赤い文字と枠 */
+  --color-danger: #d9101c;
+  /* 削除ボタンの背景（白い文字をのせる） */
+  --color-danger-button: #d9101c;
   /* いいね済みのハート（prototype と同じ） */
   --color-like: #f91880;
   --radius: 16px;
@@ -21,6 +31,9 @@
     --color-border: #2f3336;
     --color-text: #e7e9ea;
     --color-text-sub: #71767b;
+    /* 黒い背景では、濃い青・赤の文字は読みにくいので明るい色にする（ボタンの背景は白い文字のため濃いまま） */
+    --color-link: #1d9bf0;
+    --color-danger: #f4212e;
   }
 }
 
@@ -36,7 +49,7 @@ body {
 }
 
 a {
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
 }
 

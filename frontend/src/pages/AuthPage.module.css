@@ -114,3 +114,8 @@
   color: var(--color-text-sub);
   text-align: center;
 }
+
+/* 文の中のリンクは、色だけでなく下線でも見分けられるようにする */
+.switch a {
+  text-decoration: underline;
+}

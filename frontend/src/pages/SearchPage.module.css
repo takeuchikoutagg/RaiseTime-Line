@@ -62,7 +62,18 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  justify-content: center;
+  align-self: stretch;
   min-width: 0;
+  min-height: 44px;
+}
+
+.info:hover .name {
+  text-decoration: underline;
+}
+
+.info:hover {
+  text-decoration: none;
 }
 
 .name {
