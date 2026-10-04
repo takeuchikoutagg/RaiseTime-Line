@@ -1,5 +1,6 @@
 .avatar {
   display: inline-flex;
+  overflow: hidden;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -24,4 +25,13 @@
   width: 72px;
   height: 72px;
   font-size: 1.6rem;
+}
+
+/* プロフィール画像（F-12）。丸の中いっぱいに、縦横比を保ったまま切り抜く */
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--color-surface);
 }

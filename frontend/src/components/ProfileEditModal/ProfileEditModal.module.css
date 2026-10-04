@@ -1,0 +1,150 @@
+/* 入力欄は新規登録（pages/AuthPage.module.css）、ボタンは投稿モーダル（ComposeModal）と同じ見た目 */
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.avatarRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatarButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.secondary {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary:hover {
+  background: var(--color-surface);
+}
+
+.label {
+  display: block;
+  margin: 8px 0 4px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.hint {
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.invalid {
+  border-color: var(--color-danger);
+}
+
+.prefix {
+  display: flex;
+  align-items: center;
+}
+
+.prefixMark {
+  padding: 10px 0 10px 12px;
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--color-text-sub);
+}
+
+/* 入力欄がエラーのときは「@」部分の枠も赤くして、1つの枠に見えるようにする（新規登録と同じ） */
+.prefix:has(.invalid) .prefixMark {
+  border-color: var(--color-danger);
+}
+
+.prefix .input {
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  padding-left: 2px;
+}
+
+.fieldError,
+.formError {
+  min-height: 1.2em;
+  margin: 4px 0 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-sub);
+  font-size: 0.8rem;
+}
+
+.bioFooter {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.counter {
+  margin-top: 4px;
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.over {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.submit {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -85,7 +85,7 @@ export default function SignupPage() {
             <span className={styles.prefixMark}>@</span>
             <input {...inputProps('username')} autoComplete="username" autoCapitalize="off" />
           </div>,
-          '（3〜15文字・半角英小文字・数字・_。あとから変更できません）',
+          '（3〜15文字・半角英小文字・数字・_。あとからプロフィールで変更できます）',
         )}
         {field('email', 'メールアドレス', <input {...inputProps('email')} type="email" autoComplete="email" />)}
         {field(

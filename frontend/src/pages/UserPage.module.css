@@ -26,6 +26,29 @@
   color: var(--color-text-sub);
 }
 
+/* 自己紹介文（F-12）。改行はそのまま出す */
+.bio {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 「プロフィールを編集」：フォロー中のボタンと同じ白いボタン */
+.editProfile {
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editProfile:hover {
+  background: var(--color-surface);
+}
+
 .stats {
   display: flex;
   gap: 16px;

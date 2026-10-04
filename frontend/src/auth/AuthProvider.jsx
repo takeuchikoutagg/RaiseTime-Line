@@ -48,7 +48,15 @@ export default function AuthProvider({ children }) {
     }
   }, [])
 
-  const value = useMemo(() => ({ status, user, login, signup, logout }), [status, user, login, signup, logout])
+  // プロフィール編集（F-12）のあとに、ヘッダーの「マイページ」や投稿欄のアイコンを新しい内容にする
+  const updateUser = useCallback((changes) => {
+    setUser((current) => (current ? { ...current, ...changes } : current))
+  }, [])
+
+  const value = useMemo(
+    () => ({ status, user, login, signup, logout, updateUser }),
+    [status, user, login, signup, logout, updateUser],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

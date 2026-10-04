@@ -174,7 +174,7 @@ export default function TimelinePage() {
 
       <h1 className={styles.title}>ホーム</h1>
       <div className={styles.composeBar}>
-        <Avatar username={user.username} name={user.name} />
+        <Avatar username={user.username} name={user.name} avatarUrl={user.avatarUrl} />
         <button type="button" className={styles.composeButton} onClick={openCompose}>
           いまどうしてる？
         </button>

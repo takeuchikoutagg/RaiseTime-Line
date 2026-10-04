@@ -11,6 +11,7 @@ export function renderWithAuth(ui, { auth = {}, route = '/' } = {}) {
     login: vi.fn(),
     signup: vi.fn(),
     logout: vi.fn(),
+    updateUser: vi.fn(),
     ...auth,
   }
   const result = render(
