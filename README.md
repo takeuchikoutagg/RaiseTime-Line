@@ -51,6 +51,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | データベース | PostgreSQL（Docker） | PostgreSQL 17 |
 | 認証 | Spring Security（OAuth2 Resource Server）で JWT。アクセストークン15分・リフレッシュトークン7日を HttpOnly Cookie で渡す。CSRF は Cookie ＋ ヘッダー方式 | Spring Security 7.1.0 |
 | 画像の保存先 | AWS S3（AWS SDK for Java v2）。開発中は S3 互換の Adobe S3Mock（Docker） | AWS SDK 2.55.9 |
+| API 仕様書 | springdoc-openapi（OpenAPI 3.1・Swagger UI）。開発のときだけ公開 | springdoc-openapi 3.1.1 |
 | インフラ（案） | AWS（CloudFront / ALB / EC2 / RDS / S3） | - |
 | ドキュメント | Markdown（図は Mermaid） | - |
 
@@ -90,6 +91,7 @@ docker-compose.yml … 開発用の PostgreSQL
 4. ブラウザで `http://localhost:5174` を開く → ログイン画面。新規登録するとそのままログインし、仮のホーム画面（Hello World）が出る
 
 - フロントの `/api` へのリクエストは、Vite の開発サーバーがバックエンド（8081）へ転送する（`frontend/vite.config.js`）。画面と API が同じオリジンになるので、CORS の設定は不要で、ログインの Cookie もそのまま使える
+- API 仕様書: バックエンドを起動して `http://localhost:8081/swagger-ui.html` を開く。試すときは先に `GET /api/auth/csrf`、次に `POST /api/auth/login` を実行する（以降の API はログインした状態で呼べる）
 - バックエンドだけの動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`、`curl http://localhost:8081/api/auth/me` → 401（ログインしていないため）
 - フロントのテスト: `cd frontend && npm test`。静的解析: `npm run lint`。本番用のビルド: `npm run build`
 
@@ -136,6 +138,7 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 |---|---|
 | [docs/要件定義.md](./docs/要件定義.md) | 概要・対象ユーザー・利用環境・コンセプト・技術スタック・非機能要件・制約条件・未決事項・実装状況 |
 | [docs/機能一覧.md](./docs/機能一覧.md) | 全11機能の一覧と API 一覧 |
+| [docs/api/openapi.yaml](./docs/api/openapi.yaml) | API 仕様書（OpenAPI）。コードから自動で作る。開発中は Swagger UI（http://localhost:8081/swagger-ui.html）で見たり試したりできる。API を変えたら `cd backend && ./gradlew generateOpenApi` で作り直す |
 | [docs/機能定義書/](./docs/機能定義書/) | 機能ごとの詳しい仕様（入力項目・処理の流れ・業務ルール・API・エラー）。まず [00_共通仕様.md](./docs/機能定義書/00_共通仕様.md) を読む |
 | [docs/ユースケース.md](./docs/ユースケース.md) | ユースケース図とユースケース一覧（UC1〜UC13） |
 | [docs/画面設計.md](./docs/画面設計.md) | 画面一覧（S-01〜S-08）・画面遷移図・各画面のワイヤーフレーム |
