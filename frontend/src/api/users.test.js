@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchUser, fetchUserPosts, followUser, unfollowUser, updateProfile } from './users.js'
+import { fetchUser, fetchUserPosts, followUser, searchUsers, unfollowUser, updateProfile } from './users.js'
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -70,5 +70,17 @@ describe('users API', () => {
     const [, second] = fetchMock.mock.calls[1]
     expect(second.body.get('avatar')).toBeNull()
     expect(second.body.get('removeAvatar')).toBe('true')
+  })
+
+  it('searchUsers：キーワードを URL エンコードして送り、offset は 0 なら付けない', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], nextOffset: null })))
+
+    await searchUsers('山田 太郎')
+    await searchUsers('a&b', 20)
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/search/users?q=%E5%B1%B1%E7%94%B0+%E5%A4%AA%E9%83%8E',
+      '/api/search/users?q=a%26b&offset=20',
+    ])
   })
 })

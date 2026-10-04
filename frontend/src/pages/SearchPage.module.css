@@ -1,0 +1,110 @@
+.title {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* prototype の .search-box */
+.searchBox {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.empty {
+  margin: 0;
+  padding: 40px 16px;
+  color: var(--color-text-sub);
+  text-align: center;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* prototype の .user-row */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.avatarLink {
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.avatarLink:hover {
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.username {
+  color: var(--color-text-sub);
+  font-size: 0.9rem;
+}
+
+/* prototype の .badge-me */
+.me {
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+}
+
+.more {
+  padding: 16px;
+  text-align: center;
+}
+
+.moreError {
+  margin: 0 0 8px;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.retry {
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.retry:hover {
+  background: var(--color-surface);
+}

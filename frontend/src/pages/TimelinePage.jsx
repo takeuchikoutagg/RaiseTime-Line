@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import { checkNewPosts, fetchTimeline } from '../api/posts.js'
 import { useAuth } from '../auth/useAuth.js'
 import Avatar from '../components/Avatar/Avatar.jsx'
@@ -190,8 +190,13 @@ export default function TimelinePage() {
         </div>
       )}
       {status === 'ready' && posts.length === 0 && (
-        // ユーザー検索ができたら「ユーザーを検索してフォローすると…」とリンクを出す（docs/画面設計.md S-03）
-        <p className={styles.empty}>まだ投稿がありません。最初の投稿をしてみましょう</p>
+        // 投稿が無いときは、ユーザー検索へ案内する（docs/画面設計.md S-03。prototype と同じ）
+        <div className={styles.empty}>
+          <p>ユーザーを検索してフォローすると、ここに投稿が表示されます</p>
+          <Link to="/search" className={styles.findUsers}>
+            ユーザーを探す
+          </Link>
+        </div>
       )}
       {status === 'ready' && (
         <>

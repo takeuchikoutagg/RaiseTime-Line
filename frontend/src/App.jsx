@@ -3,6 +3,7 @@ import { PublicOnly, RequireAuth } from './auth/RouteGuards.jsx'
 import AppLayout from './components/AppLayout/AppLayout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import PostDetailPage from './pages/PostDetailPage.jsx'
+import SearchPage from './pages/SearchPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
 import TimelinePage from './pages/TimelinePage.jsx'
 import UserPage from './pages/UserPage.jsx'
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/" element={<TimelinePage />} />
           <Route path="/posts/:postId" element={<PostDetailPage />} />
           <Route path="/users/:username" element={<UserPage />} />
+          <Route path="/search" element={<SearchPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

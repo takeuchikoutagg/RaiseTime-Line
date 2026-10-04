@@ -15,3 +15,8 @@ export function hasControlCharacter(value) {
 export function hasVisibleText(value) {
   return /[^\s\p{Cf}]/u.test(value)
 }
+
+// 検索キーワードの前後の空白と、先頭の @ を取り除く（「@taro」でも「taro」でも同じ結果。バックエンドと同じ）
+export function normalizeSearchQuery(value) {
+  return value.trim().replace(/^@/, '').trim()
+}
