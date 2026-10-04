@@ -13,15 +13,15 @@ import com.example.raisetime.exception.StorageException;
 import com.example.raisetime.mapper.PostImageMapper;
 import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.storage.ImageMetadataStripper;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
+import com.example.raisetime.validation.LineBreaks;
 import com.example.raisetime.validation.VisibleText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -68,23 +68,22 @@ public class PostService {
     // ---------- F-04 投稿作成 ----------
 
     @Transactional
-    public PostResponse create(AuthUser author, String body, List<MultipartFile> files) {
+    public PostResponse create(AuthUser author, String rawBody, List<MultipartFile> files) {
+        // multipart で届く本文の改行（CRLF）を LF にそろえてから、チェック・保存する
+        String body = LineBreaks.normalize(rawBody);
         validateBody(body);
         List<ValidatedImage> images = validateImages(files, 0);
 
         Post post = new Post(author.getId(), body);
         postMapper.insert(post);
 
-        List<PostImage> saved = new ArrayList<>();
         List<String> keys = upload(post.getId(), images);
         for (int i = 0; i < keys.size(); i++) {
-            PostImage postImage = new PostImage(post.getId(), keys.get(i), i + 1);
-            postImageMapper.insert(postImage);
-            saved.add(postImage);
+            postImageMapper.insert(new PostImage(post.getId(), keys.get(i), i + 1));
         }
 
-        // 作ったばかりなので、いいね・コメントは0件
-        return toResponse(post, author.getUsername(), author.getName(), saved, 0, 0, false, author.getId());
+        // 投稿者の名前・プロフィール画像は DB の最新の値を使うため、保存した投稿を取り直して返す（いいね・コメントは0件）
+        return findById(post.getId(), author.getId());
     }
 
     private static void validateBody(String body) {
@@ -98,7 +97,7 @@ public class PostService {
     // 途中で失敗して DB がロールバックされたら、アップロード済みの画像を S3 から消す（S3 にゴミが残らないように）
     private List<String> upload(Long postId, List<ValidatedImage> images) {
         List<String> uploadedKeys = new ArrayList<>();
-        afterRollback(() -> uploadedKeys.forEach(this::deleteQuietly));
+        AfterTransaction.afterRollback(() -> uploadedKeys.forEach(this::deleteQuietly));
         for (ValidatedImage image : images) {
             // キーには推測されにくい UUID を使い、元のファイル名は使わない
             String key = "posts/%d/%s.%s".formatted(postId, UUID.randomUUID(), image.type().extension());
@@ -129,9 +128,19 @@ public class PostService {
             // 拡張子や Content-Type ではなく、ファイルの中身で判定する（拡張子を書き換えただけのファイルを弾く）
             ImageType type = ImageType.detect(data)
                     .orElseThrow(() -> new InvalidInputException("images", IMAGE_TYPE_MESSAGE));
-            images.add(new ValidatedImage(data, type));
+            // 撮影場所（GPS）などのメタデータを取り除いてから保存する（誰でもダウンロードできるため）
+            images.add(new ValidatedImage(stripMetadata(data, type, "images"), type));
         }
         return images;
+    }
+
+    // 画像から撮影場所などのメタデータを取り除く。中身が壊れていて読み取れなければ「画像を選んでください」の 400
+    static byte[] stripMetadata(byte[] data, ImageType type, String field) {
+        try {
+            return ImageMetadataStripper.strip(data, type);
+        } catch (ImageMetadataStripper.InvalidImageException e) {
+            throw new InvalidInputException(field, IMAGE_TYPE_MESSAGE);
+        }
     }
 
     private static byte[] readBytes(MultipartFile file) {
@@ -195,8 +204,9 @@ public class PostService {
     // 本文と画像を変える。投稿日時（created_at）は変えないので、タイムラインの並び順も変わらない。いいね・コメントはそのまま。
     // keepImageIds：今の画像のうち残すもの（送った順に並べる）。送らなかった画像は外す。files：追加する画像
     @Transactional
-    public PostResponse update(Long postId, AuthUser editor, String body, List<Long> keepImageIds,
+    public PostResponse update(Long postId, AuthUser editor, String rawBody, List<Long> keepImageIds,
                                List<MultipartFile> files) {
+        String body = LineBreaks.normalize(rawBody);
         // 同じ投稿への編集・削除が同時に走らないよう、行をロックして取る
         Post post = postMapper.findByIdForUpdate(postId);
         if (post == null) {
@@ -240,7 +250,7 @@ public class PostService {
         List<String> removedKeys = removed.stream().map(PostImage::getS3Key).toList();
 
         // 外した画像は、DB の更新が確定してから S3 から消す。消せなくても編集は成功扱いにし、ログに残す
-        afterCommit(() -> removedKeys.forEach(this::deleteQuietly));
+        AfterTransaction.afterCommit(() -> removedKeys.forEach(this::deleteQuietly));
         return findById(postId, editor.getId());
     }
 
@@ -263,25 +273,26 @@ public class PostService {
 
         // S3 の画像は、DB の削除が確定してから消す（先に消すと、DB の削除が失敗したときに画像だけ無くなるため）。
         // 消せなくても投稿の削除は成功扱いにし、ログに残す
-        afterCommit(() -> keys.forEach(this::deleteQuietly));
+        AfterTransaction.afterCommit(() -> keys.forEach(this::deleteQuietly));
     }
 
     // ---------- 共通 ----------
 
     private PostResponse toResponse(PostWithAuthor post, List<PostImage> images, Long viewerId) {
-        return toResponse(post, post.getAuthorUsername(), post.getAuthorName(), images, post.getLikeCount(),
-                post.getCommentCount(), post.isLikedByMe(), viewerId);
-    }
-
-    private PostResponse toResponse(Post post, String authorUsername, String authorName, List<PostImage> images,
-                                    long likeCount, long commentCount, boolean likedByMe, Long viewerId) {
         List<PostResponse.Image> imageResponses = images.stream()
                 .map(image -> new PostResponse.Image(image.getId(), imageStorage.publicUrl(image.getS3Key()),
                         image.getPosition()))
                 .toList();
-        return new PostResponse(post.getId(), post.getBody(), post.getCreatedAt(), post.getEditedAt(),
-                new PostResponse.Author(authorUsername, authorName), imageResponses, likeCount, commentCount,
-                likedByMe, post.getUserId().equals(viewerId));
+        PostResponse.Author author = new PostResponse.Author(post.getAuthorUsername(), post.getAuthorName(),
+                avatarUrl(post.getAuthorAvatarKey()));
+        return new PostResponse(post.getId(), post.getBody(), post.getCreatedAt(), post.getEditedAt(), author,
+                imageResponses, post.getLikeCount(), post.getCommentCount(), post.isLikedByMe(),
+                post.getUserId().equals(viewerId));
+    }
+
+    // プロフィール画像のキーから URL を作る。設定していなければ null
+    private String avatarUrl(String avatarKey) {
+        return avatarKey == null ? null : imageStorage.publicUrl(avatarKey);
     }
 
     private void deleteQuietly(String key) {
@@ -290,25 +301,5 @@ public class PostService {
         } catch (RuntimeException e) {
             log.warn("S3 の画像を消せませんでした（あとで手で消す必要があります）: {}", key, e);
         }
-    }
-
-    private static void afterCommit(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
-    }
-
-    private static void afterRollback(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    action.run();
-                }
-            }
-        });
     }
 }

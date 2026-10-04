@@ -32,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
@@ -59,8 +60,10 @@ import static org.mockito.Mockito.when;
 class PostServiceTest {
 
     private static final AuthUser TARO = new AuthUser(1L, "taro_dev", "山田太郎", null);
-    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0, 0, 0x0D};
-    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0x10};
+    // 画像として最小限の正しい形（PNG：目印＋IEND チャンク、JPEG：SOI＋EOI）。サーバーはメタデータを取り除くときに中身を読む
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n',
+        0, 0, 0, 0, 'I', 'E', 'N', 'D', (byte) 0xAE, 0x42, 0x60, (byte) 0x82};
+    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xD9};
 
     @Mock
     private PostMapper postMapper;
@@ -74,9 +77,28 @@ class PostServiceTest {
     @InjectMocks
     private PostService postService;
 
+    // create で保存した画像（取り直すときに返す）
+    private final List<PostImage> savedImages = new ArrayList<>();
+
     @BeforeEach
     void setUp() {
         TransactionSynchronizationManager.initSynchronization();
+        // create は保存した投稿を取り直して返すので、DB の代わりに保存した内容を返す
+        doAnswer(invocation -> {
+            PostImage image = invocation.getArgument(0);
+            image.setId(1000L + savedImages.size());
+            savedImages.add(image);
+            return null;
+        }).when(postImageMapper).insert(any(PostImage.class));
+        when(postImageMapper.findByPostIds(List.of(100L))).thenAnswer(invocation -> List.copyOf(savedImages));
+        PostWithAuthor saved = new PostWithAuthor();
+        saved.setId(100L);
+        saved.setUserId(1L);
+        saved.setBody("保存した本文");
+        saved.setCreatedAt(Instant.parse("2026-10-01T00:00:00Z"));
+        saved.setAuthorUsername("taro_dev");
+        saved.setAuthorName("山田太郎");
+        when(postMapper.findDetailById(100L, 1L)).thenReturn(saved);
         // insert されたら id と作成日時を入れる（DB の代わり）
         doAnswer(invocation -> {
             Post post = invocation.getArgument(0);
@@ -118,7 +140,7 @@ class PostServiceTest {
         assertThat(captor.getValue().getUserId()).isEqualTo(1L);
         assertThat(captor.getValue().getBody()).isEqualTo("はじめての投稿");
         assertThat(response.id()).isEqualTo(100L);
-        assertThat(response.author()).isEqualTo(new PostResponse.Author("taro_dev", "山田太郎"));
+        assertThat(response.author()).isEqualTo(new PostResponse.Author("taro_dev", "山田太郎", null));
         assertThat(response.images()).isEmpty();
         assertThat(response.isMine()).isTrue();
         assertThat(response.editedAt()).isNull();
@@ -329,7 +351,7 @@ class PostServiceTest {
 
         assertThat(response.items()).extracting(PostResponse::id).containsExactly(9L, 8L);
         assertThat(response.items()).extracting(PostResponse::isMine).containsExactly(false, true);
-        assertThat(response.items().get(0).author()).isEqualTo(new PostResponse.Author("hanako", "hanakoさん"));
+        assertThat(response.items().get(0).author()).isEqualTo(new PostResponse.Author("hanako", "hanakoさん", null));
         assertThat(response.items().get(0).images()).extracting(PostResponse.Image::url)
                 .containsExactly("http://img/posts/9/a.png");
         assertThat(response.items().get(1).images()).isEmpty();
@@ -383,7 +405,7 @@ class PostServiceTest {
         PostResponse response = postService.findById(9L, 1L);
 
         assertThat(response.id()).isEqualTo(9L);
-        assertThat(response.author()).isEqualTo(new PostResponse.Author("hanako", "hanakoさん"));
+        assertThat(response.author()).isEqualTo(new PostResponse.Author("hanako", "hanakoさん", null));
         assertThat(response.images()).extracting(PostResponse.Image::url).containsExactly("http://img/posts/9/a.png");
         assertThat(response.likeCount()).isEqualTo(5L);
         assertThat(response.commentCount()).isEqualTo(2L);
@@ -534,5 +556,28 @@ class PostServiceTest {
         assertThatThrownBy(() -> postService.update(5L, TARO, "編集後", null, null))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessage("投稿が見つかりません");
+    }
+
+    // ---------- 改行（multipart は CRLF で届く） ----------
+
+    @Test
+    void create_crlfLineBreaks_areSavedAsLf_andCountedAsOneCharacter() {
+        // 画面では「あ×139 ＋ 改行 ＋ あ×140」= 280文字。multipart で CRLF になって届いても受け付ける
+        String body = "あ".repeat(139) + "\r\n" + "あ".repeat(140);
+
+        postService.create(TARO, body, null);
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postMapper).insert(captor.capture());
+        assertThat(captor.getValue().getBody()).isEqualTo("あ".repeat(139) + "\n" + "あ".repeat(140));
+    }
+
+    @Test
+    void update_crlfLineBreaks_areSavedAsLf() {
+        editablePost(5, 1);
+
+        postService.update(5L, TARO, "1行目\r\n2行目", null, null);
+
+        verify(postMapper).updateBody(5L, "1行目\n2行目");
     }
 }

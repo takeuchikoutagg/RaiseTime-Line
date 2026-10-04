@@ -43,7 +43,7 @@ class CommentControllerTest {
 
     private static final AuthUser TARO = new AuthUser(1L, "taro_dev", "山田太郎", null);
     private static final CommentResponse SAMPLE = new CommentResponse(88L, "おつかれさま！",
-            Instant.parse("2026-09-26T11:40:00Z"), new CommentResponse.Author("hanako", "佐藤花子"));
+            Instant.parse("2026-09-26T11:40:00Z"), new CommentResponse.Author("hanako", "佐藤花子", null));
 
     @Autowired
     private MockMvc mockMvc;

@@ -26,6 +26,8 @@ erDiagram
         bigint id PK
         varchar username UK "@ユーザーID"
         varchar name
+        text bio "自己紹介文"
+        varchar avatar_key UK "プロフィール画像"
         varchar email UK
         varchar password_hash
         timestamptz created_at
@@ -94,8 +96,10 @@ erDiagram
 | カラム | 型 | NULL | 制約・既定値 | 説明 |
 |---|---|:-:|---|---|
 | id | bigint | × | PK（IDENTITY） | |
-| username | varchar(15) | × | UNIQUE、CHECK(username ~ '^[a-z0-9_]{3,15}$') | @ユーザーID。画面の URL や API のパスに使う。登録後は変更できない（F-01） |
+| username | varchar(15) | × | UNIQUE、CHECK(username ~ '^[a-z0-9_]{3,15}$') | @ユーザーID。画面の URL や API のパスに使う。プロフィール編集（F-12）で変更できる（ほかのテーブルは id でつながっているので、変えても投稿・フォローなどはそのまま） |
 | name | varchar(50) | × | | 表示名。重複してもよい |
+| bio | text | × | DEFAULT ''、CHECK(char_length(bio) <= 160) | 自己紹介文（F-12）。空でもよい |
+| avatar_key | varchar(255) | ○ | UNIQUE | プロフィール画像の S3 のキー（F-12、例：avatars/{user_id}/{uuid}.png）。設定していなければ NULL。URL ではなくキーを保存する理由は post_images と同じ |
 | email | varchar(255) | × | UNIQUE | ログインID。小文字にそろえてから保存する（F-01） |
 | password_hash | varchar(255) | × | | BCrypt でハッシュ化したパスワード |
 | created_at | timestamptz | × | DEFAULT now() | |

@@ -7,7 +7,7 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.stereotype.Component;
 
-// ログイン・新規登録・トークン更新のあとに、アクセストークンとリフレッシュトークンを Cookie で渡す
+// ログイン・新規登録・トークン更新・プロフィール編集のあとに、アクセストークンとリフレッシュトークンを Cookie で渡す
 @Component
 public class AuthTokenIssuer {
 
@@ -31,6 +31,11 @@ public class AuthTokenIssuer {
         // ログインの前後で CSRF トークンを変える（新しいトークンの Cookie を返す）
         CsrfToken newCsrfToken = csrfTokenRepository.generateToken(request);
         csrfTokenRepository.saveToken(newCsrfToken, request, response);
+    }
+
+    // プロフィール編集（F-12）のあと：アクセストークン（JWT）には @ユーザーID と名前が入っているので、新しい値で作り直す
+    public void reissueAccessToken(AuthUser user, HttpServletResponse response) {
+        authCookies.writeAccessToken(response, accessTokenService.issue(user));
     }
 
     // トークン更新：交換済みの新しいリフレッシュトークンと、新しいアクセストークンを渡す

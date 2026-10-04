@@ -10,6 +10,10 @@ public class User {
     private String name;
     private String email;
     private String passwordHash;
+    // 自己紹介文（F-12）。空でもよい
+    private String bio;
+    // プロフィール画像の S3 のキー（F-12）。設定していなければ null
+    private String avatarKey;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -77,5 +81,21 @@ public class User {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+
+    public String getAvatarKey() {
+        return avatarKey;
+    }
+
+    public void setAvatarKey(String avatarKey) {
+        this.avatarKey = avatarKey;
     }
 }

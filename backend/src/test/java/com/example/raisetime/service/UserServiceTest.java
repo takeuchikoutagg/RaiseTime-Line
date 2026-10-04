@@ -6,6 +6,7 @@ import com.example.raisetime.entity.User;
 import com.example.raisetime.entity.UserProfile;
 import com.example.raisetime.exception.NotFoundException;
 import com.example.raisetime.mapper.UserMapper;
+import com.example.raisetime.storage.ImageStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +32,9 @@ class UserServiceTest {
     @Mock
     private PostService postService;
 
+    @Mock
+    private ImageStorage imageStorage;
+
     @InjectMocks
     private UserService userService;
 
@@ -39,6 +43,7 @@ class UserServiceTest {
         profile.setId(id);
         profile.setUsername("hanako");
         profile.setName("佐藤花子");
+        profile.setBio("");
         profile.setFollowingCount(8);
         profile.setFollowerCount(15);
         profile.setFollowedByMe(true);
@@ -50,7 +55,7 @@ class UserServiceTest {
         when(userMapper.findProfile("hanako", 1L)).thenReturn(profile(2L));
 
         assertThat(userService.profile("hanako", 1L))
-                .isEqualTo(new UserProfileResponse("hanako", "佐藤花子", 8, 15, true, false));
+                .isEqualTo(new UserProfileResponse("hanako", "佐藤花子", "", null, 8, 15, true, false));
     }
 
     @Test

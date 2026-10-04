@@ -2,6 +2,7 @@ package com.example.raisetime.dto;
 
 import com.example.raisetime.validation.CodePointLength;
 import com.example.raisetime.validation.MaxUtf8Bytes;
+import com.example.raisetime.validation.NoControlCharacters;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +14,8 @@ import jakarta.validation.constraints.Size;
 public record SignupRequest(
         @NotBlank(message = NAME_MESSAGE)
         @CodePointLength(max = 50, message = NAME_MESSAGE)
+        // 名前は1行で表示するので、改行・タブなどの制御文字は使えない（プロフィール編集 F-12 と同じ）
+        @NoControlCharacters(message = NAME_MESSAGE)
         String name,
 
         @NotNull(message = USERNAME_MESSAGE)

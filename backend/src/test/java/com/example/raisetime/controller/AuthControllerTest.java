@@ -4,6 +4,7 @@ import com.example.raisetime.config.JwtConfig;
 import com.example.raisetime.config.SecurityConfig;
 import com.example.raisetime.dto.ErrorResponse.FieldErrorResponse;
 import com.example.raisetime.dto.LoginRequest;
+import com.example.raisetime.dto.UserResponse;
 import com.example.raisetime.dto.SignupRequest;
 import com.example.raisetime.entity.User;
 import com.example.raisetime.exception.ConflictException;
@@ -101,6 +102,9 @@ class AuthControllerTest {
         user.setId(1L);
         when(userMapper.findByEmail("taro@example.com")).thenReturn(user);
         when(refreshTokenService.issue(anyLong())).thenReturn(REFRESH_TOKEN);
+        // login / refresh / me は、DB の最新のユーザー情報（名前・プロフィール画像）を返す
+        when(authService.describe(1L)).thenReturn(Optional.of(new UserResponse("taro_dev", "山田太郎", null)));
+        when(authService.describe(2L)).thenReturn(Optional.of(new UserResponse("newbie", "新人", null)));
     }
 
     private String json(Object body) {
@@ -434,5 +438,29 @@ class AuthControllerTest {
                         .content("{not json"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    // ---------- プロフィール画像・削除されたユーザー（F-12） ----------
+
+    @Test
+    void me_returnsLatestProfileFromDb_includingAvatarUrl() throws Exception {
+        when(authService.describe(1L))
+                .thenReturn(Optional.of(new UserResponse("taro_new", "山田（改名）", "http://img/avatars/1/a.png")));
+        Cookie token = accessTokenCookie(accessTokenService.issue(new AuthUser(1L, "taro_dev", "山田太郎", null)));
+
+        mockMvc.perform(get("/api/auth/me").cookie(token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("taro_new"))
+                .andExpect(jsonPath("$.name").value("山田（改名）"))
+                .andExpect(jsonPath("$.avatarUrl").value("http://img/avatars/1/a.png"));
+    }
+
+    @Test
+    void me_deletedUser_returns401_evenWithValidAccessToken() throws Exception {
+        when(authService.describe(9L)).thenReturn(Optional.empty());
+        Cookie token = accessTokenCookie(accessTokenService.issue(new AuthUser(9L, "gone", "消えた人", null)));
+
+        mockMvc.perform(get("/api/auth/me").cookie(token))
+                .andExpect(status().isUnauthorized());
     }
 }

@@ -75,7 +75,7 @@ public class AuthController {
                         EmailNormalizer.normalize(request.email()), request.password()));
         AuthUser user = (AuthUser) authentication.getPrincipal();
         authTokenIssuer.issueForLogin(user, httpRequest, httpResponse);
-        return UserResponse.from(user);
+        return authService.describe(user.getId()).orElseGet(() -> UserResponse.from(user));
     }
 
     // アクセストークンの期限が切れたら、画面から呼んでもらう。
@@ -89,7 +89,7 @@ public class AuthController {
             AuthUser user = authService.findUser(rotation.userId())
                     .orElseThrow(() -> new InvalidRefreshTokenException("user not found"));
             authTokenIssuer.issueForRefresh(user, rotation.newToken(), httpResponse);
-            return UserResponse.from(user);
+            return authService.describe(user.getId()).orElseGet(() -> UserResponse.from(user));
         } catch (InvalidRefreshTokenException e) {
             // 使えないトークンの Cookie は消しておく（GlobalExceptionHandler で 401 になる）
             authCookies.clear(httpResponse);
@@ -108,6 +108,8 @@ public class AuthController {
 
     @GetMapping("/me")
     public UserResponse me(@AuthenticationPrincipal AuthUser user) {
-        return UserResponse.from(user);
+        // 名前・プロフィール画像は DB の最新の値を返す。アクセストークンが有効でもユーザーが削除されていたら 401
+        return authService.describe(user.getId())
+                .orElseThrow(() -> new InvalidRefreshTokenException("user not found"));
     }
 }

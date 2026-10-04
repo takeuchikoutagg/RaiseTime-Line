@@ -3,19 +3,26 @@
 <mapper namespace="com.example.raisetime.mapper.UserMapper">
 
     <select id="findByEmail" resultType="com.example.raisetime.entity.User">
-        SELECT id, username, name, email, password_hash, created_at, updated_at
+        SELECT id, username, name, email, password_hash, bio, avatar_key, created_at, updated_at
         FROM users
         WHERE email = #{email}
     </select>
 
     <select id="findById" resultType="com.example.raisetime.entity.User">
-        SELECT id, username, name, email, password_hash, created_at, updated_at
+        SELECT id, username, name, email, password_hash, bio, avatar_key, created_at, updated_at
         FROM users
         WHERE id = #{id}
     </select>
 
+    <select id="findByIdForUpdate" resultType="com.example.raisetime.entity.User">
+        SELECT id, username, name, email, password_hash, bio, avatar_key, created_at, updated_at
+        FROM users
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
     <select id="findByUsername" resultType="com.example.raisetime.entity.User">
-        SELECT id, username, name, email, password_hash, created_at, updated_at
+        SELECT id, username, name, email, password_hash, bio, avatar_key, created_at, updated_at
         FROM users
         WHERE username = #{username}
     </select>
@@ -25,7 +32,7 @@
         follows の UNIQUE(follower_id, followee_id) と (followee_id) のインデックスが使われる
     -->
     <select id="findProfile" resultType="com.example.raisetime.entity.UserProfile">
-        SELECT u.id, u.username, u.name,
+        SELECT u.id, u.username, u.name, u.bio, u.avatar_key,
                (SELECT count(*) FROM follows f WHERE f.follower_id = u.id) AS following_count,
                (SELECT count(*) FROM follows f WHERE f.followee_id = u.id) AS follower_count,
                EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = #{viewerId} AND f.followee_id = u.id)
@@ -33,6 +40,13 @@
         FROM users u
         WHERE u.username = #{username}
     </select>
+
+    <!-- プロフィール編集（F-12）。表示名・@ユーザーID・自己紹介文・プロフィール画像のキーをまとめて更新する -->
+    <update id="updateProfile">
+        UPDATE users
+        SET name = #{name}, username = #{username}, bio = #{bio}, avatar_key = #{avatarKey}, updated_at = now()
+        WHERE id = #{id}
+    </update>
 
     <select id="existsByUsername" resultType="boolean">
         SELECT EXISTS (SELECT 1 FROM users WHERE username = #{username})

@@ -10,6 +10,7 @@ import com.example.raisetime.exception.NotFoundException;
 import com.example.raisetime.mapper.CommentMapper;
 import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.storage.ImageStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -43,6 +44,9 @@ class CommentServiceTest {
     @Mock
     private PostMapper postMapper;
 
+    @Mock
+    private ImageStorage imageStorage;
+
     @InjectMocks
     private CommentService commentService;
 
@@ -73,7 +77,7 @@ class CommentServiceTest {
 
         assertThat(response.items()).extracting(CommentResponse::id).containsExactly(1L, 2L);
         assertThat(response.items().get(0)).isEqualTo(
-                new CommentResponse(1L, "コメント1", NOW, new CommentResponse.Author("hanako", "佐藤花子")));
+                new CommentResponse(1L, "コメント1", NOW, new CommentResponse.Author("hanako", "佐藤花子", null)));
         assertThat(response.nextCursor()).isNull();
     }
 
@@ -108,6 +112,14 @@ class CommentServiceTest {
             return null;
         }).when(commentMapper).insert(any(Comment.class));
 
+        CommentWithAuthor saved = row(88);
+        saved.setBody("おつかれさま！😀");
+        saved.setAuthorUsername("taro_dev");
+        saved.setAuthorName("山田太郎");
+        saved.setAuthorAvatarKey("avatars/1/a.png");
+        when(commentMapper.findWithAuthorById(88L)).thenReturn(saved);
+        when(imageStorage.publicUrl("avatars/1/a.png")).thenReturn("http://img/avatars/1/a.png");
+
         CommentResponse response = commentService.create(10L, TARO, "おつかれさま！😀");
 
         ArgumentCaptor<Comment> captor = ArgumentCaptor.forClass(Comment.class);
@@ -115,7 +127,8 @@ class CommentServiceTest {
         assertThat(captor.getValue().getPostId()).isEqualTo(10L);
         assertThat(captor.getValue().getUserId()).isEqualTo(1L);
         assertThat(response).isEqualTo(
-                new CommentResponse(88L, "おつかれさま！😀", NOW, new CommentResponse.Author("taro_dev", "山田太郎")));
+                new CommentResponse(88L, "おつかれさま！😀", NOW,
+                        new CommentResponse.Author("taro_dev", "山田太郎", "http://img/avatars/1/a.png")));
     }
 
     @Test
@@ -132,6 +145,7 @@ class CommentServiceTest {
     @Test
     void create_emoji280_isAccepted() {
         postExists(10L);
+        when(commentMapper.findWithAuthorById(any())).thenReturn(row(1));
 
         commentService.create(10L, TARO, "😀".repeat(280));
 

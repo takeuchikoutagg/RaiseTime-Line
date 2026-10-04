@@ -9,6 +9,7 @@ import com.example.raisetime.exception.NotFoundException;
 import com.example.raisetime.mapper.CommentMapper;
 import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.validation.VisibleText;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -26,10 +27,12 @@ public class CommentService {
 
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
+    private final ImageStorage imageStorage;
 
-    public CommentService(CommentMapper commentMapper, PostMapper postMapper) {
+    public CommentService(CommentMapper commentMapper, PostMapper postMapper, ImageStorage imageStorage) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
+        this.imageStorage = imageStorage;
     }
 
     // 古い順に20件。続きは after（前回の最後のコメントの id）より新しいもの
@@ -40,9 +43,7 @@ public class CommentService {
         List<CommentWithAuthor> rows = commentMapper.findByPostId(postId, after, PAGE_SIZE + 1);
         boolean hasMore = rows.size() > PAGE_SIZE;
         List<CommentWithAuthor> page = hasMore ? rows.subList(0, PAGE_SIZE) : rows;
-        List<CommentResponse> items = page.stream()
-                .map(c -> toResponse(c, c.getAuthorUsername(), c.getAuthorName()))
-                .toList();
+        List<CommentResponse> items = page.stream().map(this::toResponse).toList();
         return new CommentListResponse(items, hasMore ? page.getLast().getId() : null);
     }
 
@@ -57,7 +58,8 @@ public class CommentService {
             // 存在を確かめたあとに投稿が削除された（外部キー違反）
             throw new NotFoundException(PostService.POST_NOT_FOUND);
         }
-        return toResponse(comment, author.getUsername(), author.getName());
+        // コメントした人の名前・プロフィール画像は DB の最新の値を使うため、保存したコメントを取り直して返す
+        return toResponse(commentMapper.findWithAuthorById(comment.getId()));
     }
 
     private static void validateBody(String body) {
@@ -73,8 +75,10 @@ public class CommentService {
         }
     }
 
-    private static CommentResponse toResponse(Comment comment, String authorUsername, String authorName) {
+    private CommentResponse toResponse(CommentWithAuthor comment) {
+        String avatarUrl = comment.getAuthorAvatarKey() == null ? null
+                : imageStorage.publicUrl(comment.getAuthorAvatarKey());
         return new CommentResponse(comment.getId(), comment.getBody(), comment.getCreatedAt(),
-                new CommentResponse.Author(authorUsername, authorName));
+                new CommentResponse.Author(comment.getAuthorUsername(), comment.getAuthorName(), avatarUrl));
     }
 }

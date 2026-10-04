@@ -6,6 +6,8 @@ public class PostWithAuthor extends Post {
 
     private String authorUsername;
     private String authorName;
+    // 投稿・コメントした人のプロフィール画像の S3 のキー。設定していなければ null
+    private String authorAvatarKey;
     private long likeCount;
     private long commentCount;
     private boolean likedByMe;
@@ -48,5 +50,13 @@ public class PostWithAuthor extends Post {
 
     public void setLikedByMe(boolean likedByMe) {
         this.likedByMe = likedByMe;
+    }
+
+    public String getAuthorAvatarKey() {
+        return authorAvatarKey;
+    }
+
+    public void setAuthorAvatarKey(String authorAvatarKey) {
+        this.authorAvatarKey = authorAvatarKey;
     }
 }

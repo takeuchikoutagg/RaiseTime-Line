@@ -2,10 +2,12 @@ package com.example.raisetime.service;
 
 import com.example.raisetime.dto.ErrorResponse.FieldErrorResponse;
 import com.example.raisetime.dto.SignupRequest;
+import com.example.raisetime.dto.UserResponse;
 import com.example.raisetime.entity.User;
 import com.example.raisetime.exception.ConflictException;
 import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.storage.ImageStorage;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,10 +25,12 @@ public class AuthService {
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final ImageStorage imageStorage;
 
-    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder) {
+    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, ImageStorage imageStorage) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.imageStorage = imageStorage;
     }
 
     // F-01 新規登録。登録したユーザーを返す（呼び出し元でそのままログイン状態にする）
@@ -62,6 +66,14 @@ public class AuthService {
         User user = userMapper.findById(id);
         return Optional.ofNullable(user)
                 .map(u -> new AuthUser(u.getId(), u.getUsername(), u.getName(), null));
+    }
+
+    // ログイン中のユーザー（login / refresh / me のレスポンス）。名前・@ユーザーID・プロフィール画像は DB の最新の値を返す。
+    // ユーザーが削除されていたら空
+    public Optional<UserResponse> describe(Long id) {
+        return Optional.ofNullable(userMapper.findById(id))
+                .map(u -> new UserResponse(u.getUsername(), u.getName(),
+                        u.getAvatarKey() == null ? null : imageStorage.publicUrl(u.getAvatarKey())));
     }
 
     private static FieldErrorResponse toConflictError(DuplicateKeyException e) {
