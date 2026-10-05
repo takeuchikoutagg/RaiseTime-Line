@@ -69,6 +69,19 @@ class UserSearchMapperTest {
         assertThat(search("%qzx", 20, 0)).isEmpty();
     }
 
+    // SQL インジェクション：キーワードは #{} で値として渡すので、' や ; があっても SQL の一部として解釈されない
+    @Test
+    void sqlInKeyword_isTreatedAsPlainText() {
+        insertUser("qzx_quote", "O'Brien");
+
+        // 「' OR '1'='1」が SQL になると全員がヒットしてしまう
+        assertThat(search("' OR '1'='1", 20, 0)).isEmpty();
+        assertThat(search("qzx'; DELETE FROM users; --", 20, 0)).isEmpty();
+        // ' を含む名前も、ただの文字として探せる。上の DELETE も実行されていない
+        assertThat(search("o'b", 20, 0)).containsExactly("qzx_quote");
+        assertThat(search("qzx", 20, 0)).hasSize(7);
+    }
+
     @Test
     void limitAndOffset_pageThroughResults() {
         assertThat(search("qzx", 2, 0)).containsExactly("qzx", "qzx_viewer");

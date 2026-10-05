@@ -252,6 +252,21 @@ describe('UserPage', () => {
     expect(section.querySelector('img')).toHaveAttribute('src', 'http://img/avatars/2/a.png')
   })
 
+  it('名前・自己紹介文の HTML は文字のまま表示する（XSS 対策）', async () => {
+    vi.mocked(fetchUser).mockResolvedValue(
+      profile({ name: '<b>太字</b>', bio: '<img src=x onerror=alert(1)><script>alert(1)</script>' }),
+    )
+    vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })
+    renderPage()
+
+    const section = await screen.findByRole('region', { name: 'プロフィール' })
+    expect(within(section).getByText('<b>太字</b>')).toBeInTheDocument()
+    expect(within(section).getByText('<img src=x onerror=alert(1)><script>alert(1)</script>')).toBeInTheDocument()
+    expect(document.querySelector('b')).toBeNull()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('script')).toBeNull()
+  })
+
   it('自分のページだけ「プロフィールを編集」が出る（他の人のページはフォローボタン）', async () => {
     vi.mocked(fetchUser).mockResolvedValue(profile())
     vi.mocked(fetchUserPosts).mockResolvedValue({ items: [], nextCursor: null })

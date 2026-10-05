@@ -111,6 +111,20 @@ describe('PostDetailPage', () => {
     expect(await screen.findByText('まだコメントはありません')).toBeInTheDocument()
   })
 
+  it('コメントの本文・コメントした人の名前の HTML は文字のまま表示する（XSS 対策）', async () => {
+    vi.mocked(fetchPost).mockResolvedValue(post({ commentCount: 1 }))
+    vi.mocked(fetchComments).mockResolvedValue({
+      items: [comment(1, { body: '<img src=x onerror=alert(1)>', author: { username: 'ichiro', name: '<b>太字</b>' } })],
+      nextCursor: null,
+    })
+    renderDetail()
+
+    expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
+    expect(screen.getByText('<b>太字</b>')).toBeInTheDocument()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('b')).toBeNull()
+  })
+
   it('投稿が無ければ「投稿が見つかりません」とタイムラインへのリンク', async () => {
     vi.mocked(fetchPost).mockRejectedValue(new ApiError(404, { message: '投稿が見つかりません' }))
     vi.mocked(fetchComments).mockRejectedValue(new ApiError(404, { message: '投稿が見つかりません' }))
