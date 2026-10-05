@@ -26,6 +26,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
@@ -235,6 +236,20 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.id").value(10))
                 .andExpect(jsonPath("$.likeCount").value(3))
                 .andExpect(jsonPath("$.commentCount").value(1));
+    }
+
+    // 想定外のエラー（DB の障害など）でも、例外のメッセージやスタックトレースなど内部の情報は返さない
+    @Test
+    void unexpectedError_returns500_withoutInternalDetails() throws Exception {
+        when(postService.findById(10L, 1L))
+                .thenThrow(new IllegalStateException("connection to db-internal.example:5432 refused"));
+
+        String body = mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("予期しないエラーが発生しました"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(body).doesNotContain("db-internal", "IllegalStateException", "at com.example");
     }
 
     @Test

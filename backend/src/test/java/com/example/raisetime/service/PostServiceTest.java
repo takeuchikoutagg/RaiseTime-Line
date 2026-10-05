@@ -255,6 +255,29 @@ class PostServiceTest {
         verify(imageStorage, never()).delete(anyString());
     }
 
+    // 写真の位置情報（EXIF）などは、S3 に置く前に取り除く（docs/機能定義書/F-04_投稿作成.md）
+    @Test
+    void create_imageGpsMetadata_isRemovedBeforeUpload() {
+        // SOI ＋ APP1（EXIF に位置情報）＋ EOI
+        byte[] exif = "Exif\0\0GPSLatitude".getBytes(StandardCharsets.ISO_8859_1);
+        byte[] jpeg = new byte[4 + 4 + exif.length];
+        jpeg[0] = (byte) 0xFF;
+        jpeg[1] = (byte) 0xD8;
+        jpeg[2] = (byte) 0xFF;
+        jpeg[3] = (byte) 0xE1;
+        jpeg[4] = 0;
+        jpeg[5] = (byte) (exif.length + 2);
+        System.arraycopy(exif, 0, jpeg, 6, exif.length);
+        jpeg[6 + exif.length] = (byte) 0xFF;
+        jpeg[7 + exif.length] = (byte) 0xD9;
+
+        postService.create(TARO, "写真", List.of(file("photo.jpg", jpeg)));
+
+        ArgumentCaptor<byte[]> uploaded = ArgumentCaptor.forClass(byte[].class);
+        verify(imageStorage).put(anyString(), uploaded.capture(), eq("image/jpeg"));
+        assertThat(uploaded.getValue()).containsExactly(JPEG);
+    }
+
     // ---------- 投稿削除 ----------
 
     private static Post post(long id, long userId) {
