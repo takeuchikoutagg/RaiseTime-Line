@@ -45,7 +45,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 
 ### ドキュメント
 
-- 仕様を変えたら、関連するドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図）も同じPull Requestで更新する。
+- 仕様を変えたら、関連するドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図・テスト観点表）も同じPull Requestで更新する。
 - ドキュメントは Markdown、図は Mermaid で書く。
 - API（パス・パラメーター・リクエスト・レスポンス）を変えたら、`cd backend && ./gradlew generateOpenApi` で API 仕様書（`docs/api/openapi.yaml`）を作り直して同じPull Requestに含める。作り直し忘れは `OpenApiDocumentTest` が失敗して知らせる。
 - 「インプレッション数を表示しない」「リツイート等の拡散機能を作らない」というコンセプトに反する機能は追加しない。
