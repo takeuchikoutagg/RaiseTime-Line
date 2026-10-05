@@ -15,6 +15,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // 単体・結合テストは src/ の中だけ（e2e/ は Playwright の E2E テスト）
+    include: ['src/**/*.test.{js,jsx}'],
     setupFiles: ['./src/test/setup.js'],
   },
 })

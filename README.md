@@ -44,7 +44,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | 分類 | 技術 | バージョン |
 |---|---|---|
 | フロントエンド | React + Vite（JavaScript）、React Router、CSS Modules | React 19.2 / Vite 8.3 / React Router 8.4 |
-| フロントのテスト・静的解析 | Vitest ＋ Testing Library、oxlint | Vitest 5.0 |
+| フロントのテスト・静的解析 | Vitest ＋ Testing Library、oxlint。E2E テストは Playwright（Chromium・WebKit・Microsoft Edge） | Vitest 5.0 / Playwright 1.63 |
 | バックエンド | Spring Boot（Java） | Spring Boot 4.1.0 / Java 25（Gradle 9.5.1） |
 | DB アクセス | MyBatis（SQL は Mapper XML） | mybatis-spring-boot-starter 4.1.0 |
 | マイグレーション | Flyway | Spring Boot 管理のバージョン |
@@ -94,6 +94,7 @@ docker-compose.yml … 開発用の PostgreSQL
 - API 仕様書: バックエンドを起動して `http://localhost:8081/swagger-ui.html` を開く。試すときは先に `GET /api/auth/csrf`、次に `POST /api/auth/login` を実行する（以降の API はログインした状態で呼べる）
 - バックエンドだけの動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`、`curl http://localhost:8081/api/auth/me` → 401（ログインしていないため）
 - フロントのテスト: `cd frontend && npm test`。静的解析: `npm run lint`。本番用のビルド: `npm run build`
+- E2E テスト（本物のブラウザで画面を通して操作する）: `cd frontend && npm run e2e`（初回だけ `npx playwright install chromium webkit`。Edge はインストール済みのものを使う）。結果は `npm run e2e:report`。詳しくは [docs/テスト仕様書.md](./docs/テスト仕様書.md) の5章
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
 - テスト: `cd backend && ./gradlew test`（PostgreSQL が起動している必要がある）。静的解析: `./gradlew checkstyleMain`

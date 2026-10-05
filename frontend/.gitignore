@@ -25,3 +25,8 @@ dist-ssr
 
 # テストの網羅率のレポート（npx vitest run --coverage）
 coverage
+
+# E2E テスト（Playwright）の結果・レポート
+test-results
+playwright-report
+blob-report
