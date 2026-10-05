@@ -40,15 +40,18 @@ export default function FollowButton({ username, followedByMe, onChange }) {
           onClick={handleClick}
           disabled={pending}
         >
-          <span className={styles.default}>フォロー中</span>
           {/*
-            「フォロー解除」はマウスを乗せたときしか見えないので、読み上げでは押すと解除されることも伝える。
-            aria-label で名前を丸ごと置き換えると、見えている文字と読み上げる名前がずれるため、見えない文字として足す
+            読み上げる名前は、見えない文字の「フォロー中（押すと @… のフォローを解除）」だけにする。
+            見えている「フォロー中」「フォロー解除」は、マウスを乗せると入れ替わる（display: none になる）ため、
+            読み上げの対象にすると、マウスの位置でボタンの名前が変わってしまう（E2E テストで見つかった）
           */}
-          <span className={styles.visuallyHidden}>（押すと @{username} のフォローを解除）</span>
+          <span className={styles.default} aria-hidden="true">
+            フォロー中
+          </span>
           <span className={styles.hover} aria-hidden="true">
             フォロー解除
           </span>
+          <span className={styles.visuallyHidden}>フォロー中（押すと @{username} のフォローを解除）</span>
         </button>
       ) : (
         <button type="button" className={`${styles.button} ${styles.follow}`} onClick={handleClick} disabled={pending}>
