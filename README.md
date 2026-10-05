@@ -144,6 +144,7 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 | [docs/画面設計.md](./docs/画面設計.md) | 画面一覧（S-01〜S-08）・画面遷移図・各画面のワイヤーフレーム |
 | [docs/ER図.md](./docs/ER図.md) | ER図・テーブル定義・インデックス・主要なクエリ |
 | [docs/テスト観点表.md](./docs/テスト観点表.md) | 機能ごとのテストの観点と、それを確かめているテスト・足りない観点 |
+| [docs/テスト仕様書.md](./docs/テスト仕様書.md) | 画面を操作して確かめるシナリオテストの手順・期待する結果・実施結果（Chrome / Safari / Edge） |
 | [docs/インフラ構成図.md](./docs/インフラ構成図.md) | AWS で構築する場合の構成案・ネットワーク・権限・費用を抑える工夫 |
 
 図はすべて [Mermaid](https://mermaid.js.org/) で書いている。GitHub ではそのまま図として表示される。VSCode では拡張機能「Markdown Preview Mermaid Support」を入れるとプレビューで表示できる。
