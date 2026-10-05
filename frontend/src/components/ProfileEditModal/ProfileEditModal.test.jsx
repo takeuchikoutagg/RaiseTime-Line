@@ -143,6 +143,27 @@ describe('ProfileEditModal', () => {
     expect(screen.getByRole('button', { name: '保存する' })).toBeDisabled()
   })
 
+  // 見えないファイル選択欄にフォーカスしようとして、フォーカスがモーダルの外に残っていた（docs/テスト仕様書.md の P-1）
+  it('開くと、名前の欄にフォーカスが移る', () => {
+    setup()
+
+    expect(screen.getByLabelText(/^名前/)).toHaveFocus()
+  })
+
+  // label だと Tab で止まらず、キーボードだけでは画像を選べなかった（docs/テスト仕様書.md の P-2）
+  it('「画像を変更」はボタンで、キーボードで押すとファイル選択を開く', async () => {
+    const { user } = setup()
+    const openPicker = vi.spyOn(screen.getByTestId('avatar-input'), 'click')
+
+    // 名前の欄から Shift+Tab で「画像を外す」→「画像を変更」へ戻る
+    await user.tab({ shift: true })
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: '画像を変更' })).toHaveFocus()
+
+    await user.keyboard(' ')
+    expect(openPicker).toHaveBeenCalledTimes(1)
+  })
+
   it('画像以外のファイルは選べない', async () => {
     const { user } = setup()
 

@@ -21,6 +21,40 @@ describe('Modal', () => {
     expect(screen.getByRole('textbox', { name: '本文' })).toHaveFocus()
   })
 
+  it('文字を入力する欄があれば、その前にあるボタンより優先してフォーカスを移す', () => {
+    renderModal(
+      vi.fn(),
+      <>
+        <button type="button">画像を変更</button>
+        <input aria-label="名前" />
+      </>,
+    )
+
+    expect(screen.getByRole('textbox', { name: '名前' })).toHaveFocus()
+  })
+
+  // 画面に出していない部品にはフォーカスを移せない。移そうとすると、フォーカスがモーダルの外に残ってしまう
+  // （プロフィール編集で起きた問題。docs/テスト仕様書.md の P-1）
+  it('hidden のファイル選択欄は、フォーカスを移す先・Tab で回る部品に含めない', async () => {
+    const { user } = renderModal(
+      vi.fn(),
+      <>
+        <input type="file" hidden data-testid="file" />
+        <input aria-label="名前" />
+        <input type="file" hidden data-testid="file-last" />
+      </>,
+    )
+    const close = screen.getByRole('button', { name: '閉じる' })
+    const name = screen.getByRole('textbox', { name: '名前' })
+
+    expect(name).toHaveFocus()
+    // 最後に見えている部品（名前）から Tab で、先頭の「閉じる」へ戻る（hidden の欄には止まらない）
+    await user.tab()
+    expect(close).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(name).toHaveFocus()
+  })
+
   it('操作できる部品が「閉じる」ボタンだけなら、そこにフォーカスを移す', () => {
     renderModal(vi.fn(), <p>説明だけ</p>)
 

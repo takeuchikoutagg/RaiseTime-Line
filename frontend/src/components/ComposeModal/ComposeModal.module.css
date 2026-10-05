@@ -71,16 +71,19 @@
   padding: 4px 12px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
 }
 
-.addImage:hover {
+.addImage:hover:not(:disabled) {
   background: var(--color-surface);
 }
 
-.disabled {
+.addImage:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
