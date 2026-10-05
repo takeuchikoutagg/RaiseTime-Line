@@ -69,12 +69,28 @@ describe('ComposeModal', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-0')
   })
 
+  // label だと Tab で止まらず、キーボードだけでは画像を選べなかった（docs/テスト仕様書.md の P-2）
+  it('「画像を追加」はボタンで、キーボードでたどり着いて押すとファイル選択を開く', async () => {
+    const { user } = setup()
+    const openPicker = vi.spyOn(screen.getByTestId('image-input'), 'click')
+
+    // 開いたときは本文。Tab で次の「画像を追加」へ
+    expect(screen.getByLabelText('本文')).toHaveFocus()
+    await user.tab()
+    const addImage = screen.getByRole('button', { name: '画像を追加（0/4）' })
+    expect(addImage).toHaveFocus()
+
+    await user.keyboard('{Enter}')
+    expect(openPicker).toHaveBeenCalledTimes(1)
+  })
+
   it('5枚目・対象外の形式・5MB 超えは追加せず、メッセージを出す', async () => {
     const { user } = setup()
 
     await user.upload(screen.getByTestId('image-input'), [image('1.png'), image('2.png'), image('3.png'), image('4.png')])
     expect(await screen.findAllByRole('img')).toHaveLength(4)
     expect(screen.getByTestId('image-input')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '画像を追加（4/4）' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: '画像4を外す' }))
     await user.upload(screen.getByTestId('image-input'), [image('a.bmp', 'image/bmp')])

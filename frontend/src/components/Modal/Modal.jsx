@@ -5,6 +5,14 @@ import styles from './Modal.module.css'
 // 開いたらモーダルの中にフォーカスを移し、Tab はモーダルの中だけを回る。Esc・背景のクリック・×で閉じる
 
 const FOCUSABLE_SELECTOR = 'button:not(:disabled), [href], input:not(:disabled), select, textarea, [tabindex]:not([tabindex="-1"])'
+// 文字を入力する欄（開いたときに、ボタンより優先してフォーカスを移す）
+const TEXT_FIELD_SELECTOR = 'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), textarea, select'
+
+// モーダルの中の、フォーカスできる部品。画面に出していない部品（hidden のファイル選択欄など）は
+// フォーカスできないので除く（含めると、そこへ移そうとして失敗し、フォーカスがモーダルの外に残る）
+function focusableElements(dialog) {
+  return [...(dialog?.querySelectorAll(FOCUSABLE_SELECTOR) ?? [])].filter((el) => !el.closest('[hidden]'))
+}
 
 export default function Modal({ title, onClose, children, variant = 'dialog' }) {
   const titleId = useId()
@@ -13,9 +21,12 @@ export default function Modal({ title, onClose, children, variant = 'dialog' }) 
   // マウント時にモーダルの中の最初の操作できる要素へフォーカスを移し、閉じたら元の場所に戻す
   useEffect(() => {
     const previouslyFocused = document.activeElement
-    const focusable = dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR)
-    // 先頭は「閉じる」ボタンなので、入力欄などがあればそちらを優先する
-    const first = [...(focusable ?? [])].find((el) => !el.dataset.closeButton) ?? focusable?.[0]
+    const focusable = focusableElements(dialogRef.current)
+    // 先頭は「閉じる」ボタンなので、文字を入力する欄 → そのほかの部品 → 「閉じる」の順に探す
+    const first =
+      focusable.find((el) => el.matches(TEXT_FIELD_SELECTOR)) ??
+      focusable.find((el) => !el.dataset.closeButton) ??
+      focusable[0]
     if (first) {
       first.focus()
     } else {
@@ -34,8 +45,8 @@ export default function Modal({ title, onClose, children, variant = 'dialog' }) 
       }
       if (event.key !== 'Tab') return
 
-      const focusable = dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR)
-      if (!focusable || focusable.length === 0) return
+      const focusable = focusableElements(dialogRef.current)
+      if (focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
       if (event.shiftKey && document.activeElement === first) {

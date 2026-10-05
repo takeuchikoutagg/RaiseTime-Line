@@ -22,7 +22,8 @@ export default function ProfileEditModal({ profile, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   // 選んだ画像を縮めている間は保存できない
   const [preparing, setPreparing] = useState(false)
-  const fileInputId = useId()
+  // 「画像を変更」ボタンから開く、ファイル選択欄（画面には出さない）
+  const fileInputRef = useRef(null)
   const idPrefix = useId()
 
   // 閉じるときに、選んだ画像のプレビュー URL を解放する
@@ -141,11 +142,12 @@ export default function ProfileEditModal({ profile, onClose, onSaved }) {
             size="large"
           />
           <div className={styles.avatarButtons}>
-            <label htmlFor={fileInputId} className={styles.secondary}>
+            {/* label ではなくボタンにする（label は Tab で止まらず、キーボードだけでは画像を選べないため） */}
+            <button type="button" className={styles.secondary} onClick={() => fileInputRef.current?.click()}>
               画像を変更
-            </label>
+            </button>
             <input
-              id={fileInputId}
+              ref={fileInputRef}
               type="file"
               accept={ACCEPTED_IMAGE_TYPES.join(',')}
               hidden

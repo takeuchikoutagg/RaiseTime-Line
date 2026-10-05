@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPost, updatePost } from '../../api/posts.js'
 import { resizeForPost } from '../../utils/image.js'
 import { countChars } from '../../utils/text.js'
@@ -35,7 +35,8 @@ export default function ComposeModal({ post = null, onClose, onCreated, onSaved 
   const [submitting, setSubmitting] = useState(false)
   // 選んだ画像を縮めている間は投稿できない
   const [preparing, setPreparing] = useState(false)
-  const fileInputId = useId()
+  // 「画像を追加」ボタンから開く、ファイル選択欄（画面には出さない）
+  const fileInputRef = useRef(null)
   const nextImageId = useRef(0)
   // 閉じるときに、その時点で選んでいる画像のプレビュー URL を解放するため、最新の一覧を覚えておく
   const imagesRef = useRef(images)
@@ -163,14 +164,17 @@ export default function ComposeModal({ post = null, onClose, onCreated, onSaved 
           </ul>
         )}
         <div className={styles.toolbar}>
-          <label
-            htmlFor={fileInputId}
-            className={`${styles.addImage} ${images.length >= MAX_IMAGES ? styles.disabled : ''}`}
+          {/* label ではなくボタンにする（label は Tab で止まらず、キーボードだけでは画像を選べないため） */}
+          <button
+            type="button"
+            className={styles.addImage}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={images.length >= MAX_IMAGES}
           >
             画像を追加（{images.length}/{MAX_IMAGES}）
-          </label>
+          </button>
           <input
-            id={fileInputId}
+            ref={fileInputRef}
             type="file"
             accept={ACCEPTED_IMAGE_TYPES.join(',')}
             multiple
