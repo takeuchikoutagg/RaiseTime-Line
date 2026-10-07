@@ -94,12 +94,18 @@ class RefreshTokenMapperTest {
 
     @Test
     void deleteExpired_deletesOnlyExpiredTokens() {
-        insert(hash('a'), UUID.randomUUID(), NOW.minusSeconds(1));
-        insert(hash('b'), UUID.randomUUID(), NOW.plusSeconds(3600));
+        // 開発用の DB に入っているトークン（本当に期限が切れたものもある）を数えないよう、ずっと昔の時刻を「今」にする。
+        // 以前は本当の現在時刻を使っていて、DB に期限切れのトークンがあると件数がずれて失敗した
+        Instant now = Instant.parse("2000-01-01T00:00:00Z");
+        insert(hash('a'), UUID.randomUUID(), now.minusSeconds(1));
+        // 境界値：ちょうど今が期限のものも、期限切れとして消す
+        insert(hash('b'), UUID.randomUUID(), now);
+        insert(hash('c'), UUID.randomUUID(), now.plusSeconds(1));
 
-        assertThat(refreshTokenMapper.deleteExpired(NOW)).isEqualTo(1);
+        assertThat(refreshTokenMapper.deleteExpired(now)).isEqualTo(2);
         assertThat(refreshTokenMapper.findByTokenHash(hash('a'))).isNull();
-        assertThat(refreshTokenMapper.findByTokenHash(hash('b'))).isNotNull();
+        assertThat(refreshTokenMapper.findByTokenHash(hash('b'))).isNull();
+        assertThat(refreshTokenMapper.findByTokenHash(hash('c'))).isNotNull();
     }
 
     @Test

@@ -1,6 +1,7 @@
 plugins {
 	id 'java'
 	id 'checkstyle'
+	id 'jacoco'
 	id 'org.springframework.boot' version '4.1.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -51,6 +52,62 @@ tasks.named('test') {
 	useJUnitPlatform()
 	// テストは開発用の設定（application-dev.properties）で動かす
 	systemProperty 'spring.profiles.active', 'dev'
+	// テストのあとに、網羅率のレポートを作る
+	finalizedBy 'jacocoTestReport'
+}
+
+// テストの網羅率（JaCoCo）。docs/テスト設計書.md のホワイトボックステストで使う。
+// - C0（命令網羅）：すべての行を通ったか　- C1（分岐網羅）：if などの分かれ道を両方とも通ったか
+// レポート：build/reports/jacoco/test/html/index.html（クラスを開くと、通っていない行・分岐に色が付く）
+jacoco {
+	toolVersion = '0.8.15'
+}
+
+tasks.named('jacocoTestReport') {
+	dependsOn 'test'
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+// 網羅率を、クラスごとに一覧で表示する：./gradlew test coverageSummary
+// 分岐網羅（C1）が 100% でないクラスだけを、低い順に出す
+tasks.register('coverageSummary') {
+	description = '網羅率（C0・C1）をクラスごとに表示する'
+	group = 'verification'
+	dependsOn 'jacocoTestReport'
+	def reportFile = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
+	doLast {
+		def parser = new groovy.xml.XmlSlurper()
+		parser.setFeature('http://apache.org/xml/features/disallow-doctype-decl', false)
+		parser.setFeature('http://apache.org/xml/features/nonvalidating/load-external-dtd', false)
+		def report = parser.parse(reportFile.get().asFile)
+		def percent = { counter -> counter == null ? null : (counter.@covered.toInteger() * 100.0 / (counter.@covered.toInteger() + counter.@missed.toInteger())) }
+		def counterOf = { node, type -> node.counter.find { it.@type == type } }
+		def rows = []
+		report.package.each { pkg ->
+			pkg.'class'.each { cls ->
+				def line = counterOf(cls, 'LINE')
+				def branch = counterOf(cls, 'BRANCH')
+				if (line.size() == 0) return
+				rows << [name: cls.@name.toString().replace('com/example/raisetime/', ''),
+						c0: percent(line), c1: branch.size() == 0 ? null : percent(branch),
+						missedBranches: branch.size() == 0 ? 0 : branch.@missed.toInteger(),
+						missedLines: line.@missed.toInteger()]
+			}
+		}
+		def total = { type -> percent(report.counter.find { it.@type == type }) }
+		println String.format('全体：C0（命令網羅・行）%.1f%%　C1（分岐網羅）%.1f%%', total('LINE'), total('BRANCH'))
+		println ''
+		println String.format('%-52s %8s %8s %s', 'クラス', 'C0', 'C1', '通っていない（行／分岐）')
+		rows.findAll { it.missedBranches > 0 || it.missedLines > 0 }
+				.sort { a, b -> (a.c1 ?: 100.0) <=> (b.c1 ?: 100.0) ?: a.c0 <=> b.c0 }
+				.each { row ->
+					println String.format('%-52s %7.1f%% %8s %d／%d', row.name, row.c0,
+							row.c1 == null ? '-' : String.format('%.1f%%', row.c1), row.missedLines, row.missedBranches)
+				}
+	}
 }
 
 // API 仕様書（docs/api/openapi.yaml）を作り直す。API を変えたら実行してコミットする（PostgreSQL の起動が必要）。

@@ -17,6 +17,14 @@ export default defineConfig({
     environment: 'jsdom',
     // 単体・結合テストは src/ の中だけ（e2e/ は Playwright の E2E テスト）
     include: ['src/**/*.test.{js,jsx}'],
+    // 網羅率（npm run coverage）。docs/テスト設計書.md のホワイトボックステストで使う。
+    // レポート：coverage/index.html（ファイルを開くと、通っていない行・分岐に色が付く）
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/**/*.test.{js,jsx}', 'src/test/**', 'src/main.jsx'],
+      reporter: ['text', 'html'],
+    },
     setupFiles: ['./src/test/setup.js'],
   },
 })

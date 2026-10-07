@@ -94,6 +94,7 @@ docker-compose.yml … 開発用の PostgreSQL
 - API 仕様書: バックエンドを起動して `http://localhost:8081/swagger-ui.html` を開く。試すときは先に `GET /api/auth/csrf`、次に `POST /api/auth/login` を実行する（以降の API はログインした状態で呼べる）
 - バックエンドだけの動作確認: `curl http://localhost:8081/actuator/health` → `{"status":"UP"}`、`curl http://localhost:8081/api/auth/me` → 401（ログインしていないため）
 - フロントのテスト: `cd frontend && npm test`。静的解析: `npm run lint`。本番用のビルド: `npm run build`
+- テストの網羅率（どの行・分岐を通ったか）: バックエンドは `cd backend && ./gradlew test coverageSummary`（詳細は `build/reports/jacoco/test/html/index.html`）、フロントは `cd frontend && npm run coverage`（詳細は `coverage/index.html`）
 - E2E テスト（本物のブラウザで画面を通して操作する）: `cd frontend && npm run e2e`（初回だけ `npx playwright install chromium webkit`。Edge はインストール済みのものを使う）。結果は `npm run e2e:report`。詳しくは [docs/テスト仕様書.md](./docs/テスト仕様書.md) の5章
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
@@ -145,6 +146,7 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 | [docs/画面設計.md](./docs/画面設計.md) | 画面一覧（S-01〜S-08）・画面遷移図・各画面のワイヤーフレーム |
 | [docs/ER図.md](./docs/ER図.md) | ER図・テーブル定義・インデックス・主要なクエリ |
 | [docs/テスト観点表.md](./docs/テスト観点表.md) | 機能ごとのテストの観点と、それを確かめているテスト・足りない観点 |
+| [docs/テスト設計書.md](./docs/テスト設計書.md) | テスト技法（同値分割・境界値・デシジョンテーブル・状態遷移・ペアワイズ・エラー推測／命令網羅・分岐網羅）から導いたテストケースと、今のテストとの対応・追加するテスト・見つかった不具合 |
 | [docs/テスト仕様書.md](./docs/テスト仕様書.md) | 画面を操作して確かめるシナリオテストの手順・期待する結果・実施結果（Chrome / Safari / Edge） |
 | [docs/ログ・監視設計.md](./docs/ログ・監視設計.md) | ログの運用・監視・運用方針の考え方と、このアプリでの設計（SLO・出すログ・アラート・ランブック。Datadog を前提に、CloudWatch との比較も） |
 | [docs/インフラ構成図.md](./docs/インフラ構成図.md) | AWS で構築する場合の構成案・ネットワーク・権限・費用を抑える工夫 |
