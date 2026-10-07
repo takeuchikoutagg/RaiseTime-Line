@@ -1,6 +1,8 @@
 package com.example.raisetime.security;
 
 import com.example.raisetime.exception.TooManyRequestsException;
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.support.LogCapture;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -124,6 +126,38 @@ class LoginAttemptServiceTest {
 
         assertThatThrownBy(() -> service.checkAllowed("mine@example.com", IP))
                 .isInstanceOf(TooManyRequestsException.class);
+    }
+
+    // ログインできなくなった瞬間に1回だけ記録する（docs/ログ・監視設計.md の M-5）。メールアドレスは一部を隠す
+    @Test
+    void reachingTheEmailLimit_isLoggedOnce_withMaskedEmail() {
+        try (LogCapture logs = LogCapture.of(LoginAttemptService.class)) {
+            fail(EMAIL, IP, LoginAttemptService.MAX_FAILURES_PER_EMAIL - 1);
+            assertThat(logs.count(LogEvents.LOGIN_LOCKED)).isZero();
+
+            // 上限に達したあとも失敗が続く（記録は増えない）
+            fail(EMAIL, IP, 3);
+
+            assertThat(LogCapture.fields(logs.single(LogEvents.LOGIN_LOCKED)))
+                    .containsEntry("locked_by", "email")
+                    .containsEntry("email", "t***@example.com")
+                    .containsEntry("client_ip", IP)
+                    .containsEntry("failure_count", LoginAttemptService.MAX_FAILURES_PER_EMAIL);
+            assertThat(logs.allText()).doesNotContain(EMAIL);
+        }
+    }
+
+    @Test
+    void reachingTheIpLimit_isLoggedAsLockedByIp() {
+        try (LogCapture logs = LogCapture.of(LoginAttemptService.class)) {
+            for (int i = 0; i < LoginAttemptService.MAX_FAILURES_PER_IP; i++) {
+                service.recordFailure("user" + i + "@example.com", IP);
+            }
+
+            assertThat(LogCapture.fields(logs.single(LogEvents.LOGIN_LOCKED)))
+                    .containsEntry("locked_by", "ip")
+                    .containsEntry("client_ip", IP);
+        }
     }
 
     @Test

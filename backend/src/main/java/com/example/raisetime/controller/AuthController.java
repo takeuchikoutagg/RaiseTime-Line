@@ -5,6 +5,9 @@ import com.example.raisetime.dto.LoginRequest;
 import com.example.raisetime.dto.SignupRequest;
 import com.example.raisetime.dto.UserResponse;
 import com.example.raisetime.exception.InvalidRefreshTokenException;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.logging.LogMasks;
 import com.example.raisetime.security.AuthCookies;
 import com.example.raisetime.security.AuthTokenIssuer;
 import com.example.raisetime.security.AuthUser;
@@ -18,6 +21,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -38,6 +43,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthService authService;
     private final AuthenticationManager authenticationManager;
@@ -75,6 +82,11 @@ public class AuthController {
         AuthUser user = authService.signup(request);
         // 登録したらそのままログインした状態にする
         authTokenIssuer.issueForLogin(user, httpRequest, httpResponse);
+        LogContext.setUserId(user.getId());
+        log.atInfo()
+                .addKeyValue(LogContext.EVENT, LogEvents.SIGNUP_SUCCEEDED)
+                .addKeyValue("client_ip", httpRequest.getRemoteAddr())
+                .log("新規登録しました（userId={}）", user.getId());
         return UserResponse.from(user);
     }
 
@@ -92,12 +104,24 @@ public class AuthController {
             authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(email, request.password()));
         } catch (AuthenticationException e) {
-            // 失敗を数えてから投げ直す（GlobalExceptionHandler で 401 になる）
+            // 失敗を数えてから投げ直す（GlobalExceptionHandler で 401 になる）。
+            // 1件ずつは打ち間違いなどの普通の出来事なので INFO。件数の急増を監視する。
+            // パスワードは出さない。メールアドレスは一部を隠す
+            log.atInfo()
+                    .addKeyValue(LogContext.EVENT, LogEvents.LOGIN_FAILED)
+                    .addKeyValue("email", LogMasks.email(email))
+                    .addKeyValue("client_ip", ip)
+                    .log("ログインに失敗しました（{}）", LogMasks.email(email));
             loginAttemptService.recordFailure(email, ip);
             throw e;
         }
         loginAttemptService.recordSuccess(email);
         AuthUser user = (AuthUser) authentication.getPrincipal();
+        LogContext.setUserId(user.getId());
+        log.atInfo()
+                .addKeyValue(LogContext.EVENT, LogEvents.LOGIN_SUCCEEDED)
+                .addKeyValue("client_ip", ip)
+                .log("ログインしました（userId={}）", user.getId());
         authTokenIssuer.issueForLogin(user, httpRequest, httpResponse);
         return authService.describe(user.getId()).orElseGet(() -> UserResponse.from(user));
     }

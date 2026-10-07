@@ -1,5 +1,7 @@
 package com.example.raisetime.service;
 
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.support.LogCapture;
 import com.example.raisetime.config.AuthProperties;
 import com.example.raisetime.entity.RefreshToken;
 import com.example.raisetime.exception.InvalidRefreshTokenException;
@@ -106,6 +108,22 @@ class RefreshTokenServiceTest {
         assertThatThrownBy(() -> service.rotate("raw")).isInstanceOf(InvalidRefreshTokenException.class);
         verify(refreshTokenMapper).revokeFamily(FAMILY, NOW);
         verify(refreshTokenMapper, never()).insert(any());
+    }
+
+    // 盗まれた可能性があるので、監視で気づけるよう WARN で記録する（docs/ログ・監視設計.md の M-6）。トークンそのものは出さない
+    @Test
+    void rotate_reusedToken_isLoggedWithUserIdAndRevokedCount_withoutTheToken() {
+        when(refreshTokenMapper.findByTokenHash(any())).thenReturn(stored(NOW.plusSeconds(60), NOW.minusSeconds(5)));
+        when(refreshTokenMapper.revokeFamily(FAMILY, NOW)).thenReturn(3);
+
+        try (LogCapture logs = LogCapture.of(RefreshTokenService.class)) {
+            assertThatThrownBy(() -> service.rotate("raw-token-value")).isInstanceOf(InvalidRefreshTokenException.class);
+
+            var event = logs.single(LogEvents.REFRESH_TOKEN_REUSED);
+            assertThat(event.getLevel().toString()).isEqualTo("WARN");
+            assertThat(LogCapture.fields(event)).containsEntry("revoked_count", 3).containsKey("user_id");
+            assertThat(logs.allText()).doesNotContain("raw-token-value", RefreshTokenService.hash("raw-token-value"));
+        }
     }
 
     @Test

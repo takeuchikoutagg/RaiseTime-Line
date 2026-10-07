@@ -2,6 +2,8 @@ package com.example.raisetime.exception;
 
 import com.example.raisetime.dto.ErrorResponse;
 import com.example.raisetime.dto.ErrorResponse.FieldErrorResponse;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -83,6 +85,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
+        // 他人の投稿を編集・削除しようとした、など。画面からは起きないので、続くなら不正な操作の試み
+        log.atWarn()
+                .addKeyValue(LogContext.EVENT, LogEvents.ACCESS_DENIED)
+                .addKeyValue("reason", "forbidden")
+                .log("権限のない操作を拒否しました: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of("FORBIDDEN", ex.getMessage()));
     }
 
@@ -115,7 +122,10 @@ public class GlobalExceptionHandler {
     // 画像の保存先（S3）とのやり取りに失敗した
     @ExceptionHandler(StorageException.class)
     public ResponseEntity<ErrorResponse> handleStorage(StorageException ex) {
-        log.error("Storage error", ex);
+        log.atError()
+                .addKeyValue(LogContext.EVENT, LogEvents.STORAGE_FAILED)
+                .setCause(ex)
+                .log("画像の保存先（S3）とのやり取りに失敗しました");
         return ResponseEntity.internalServerError()
                 .body(ErrorResponse.of("INTERNAL_ERROR", "投稿に失敗しました。時間をおいてもう一度お試しください"));
     }
@@ -171,7 +181,10 @@ public class GlobalExceptionHandler {
     // 想定外のエラー。内部の情報はレスポンスに出さず、ログにだけ残す
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
-        log.error("Unexpected error", ex);
+        log.atError()
+                .addKeyValue(LogContext.EVENT, LogEvents.UNEXPECTED_ERROR)
+                .setCause(ex)
+                .log("想定外のエラーが起きました");
         return ResponseEntity.internalServerError()
                 .body(ErrorResponse.of("INTERNAL_ERROR", "予期しないエラーが発生しました"));
     }

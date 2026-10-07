@@ -3,6 +3,8 @@ package com.example.raisetime.service;
 import com.example.raisetime.config.AuthProperties;
 import com.example.raisetime.entity.RefreshToken;
 import com.example.raisetime.exception.InvalidRefreshTokenException;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
 import com.example.raisetime.mapper.RefreshTokenMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,7 +88,10 @@ public class RefreshTokenService {
     @Transactional
     public void deleteExpired() {
         int deleted = refreshTokenMapper.deleteExpired(clock.instant());
-        log.info("期限切れのリフレッシュトークンを {} 件削除しました", deleted);
+        log.atInfo()
+                .addKeyValue(LogContext.EVENT, LogEvents.REFRESH_TOKENS_PURGED)
+                .addKeyValue("deleted_count", deleted)
+                .log("期限切れのリフレッシュトークンを {} 件削除しました", deleted);
     }
 
     private String issue(Long userId, UUID familyId) {
@@ -100,8 +105,13 @@ public class RefreshTokenService {
 
     private void revokeFamilyAfterReuse(RefreshToken token, Instant now) {
         int revoked = refreshTokenMapper.revokeFamily(token.getFamilyId(), now);
-        log.warn("使用済みのリフレッシュトークンが使われたため、系列を無効にしました（userId={}, 無効にした件数={}）",
-                token.getUserId(), revoked);
+        // 盗まれたトークンが使われた可能性がある。監視（docs/ログ・監視設計.md の M-6）はこの event で気づく
+        log.atWarn()
+                .addKeyValue(LogContext.EVENT, LogEvents.REFRESH_TOKEN_REUSED)
+                .addKeyValue(LogContext.USER_ID, token.getUserId())
+                .addKeyValue("revoked_count", revoked)
+                .log("使用済みのリフレッシュトークンが使われたため、系列を無効にしました（userId={}, 無効にした件数={}）",
+                        token.getUserId(), revoked);
     }
 
     static String hash(String rawToken) {

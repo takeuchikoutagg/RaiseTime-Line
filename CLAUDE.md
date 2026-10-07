@@ -14,6 +14,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 - フロントエンド：React + Vite（JavaScript）、React Router、CSS Modules。テストは Vitest ＋ Testing Library、E2E テストは Playwright（`frontend/e2e/`、`npm run e2e`。Chromium・WebKit・Microsoft Edge）、静的解析は oxlint
 - 画像：AWS S3（AWS SDK v2）。開発中は S3 互換の Adobe S3Mock（Docker Compose、認証なし）。画像ファイルは S3、DB には S3 のキーだけを保存する
 - DB：PostgreSQL 17（Docker Compose）。テーブルは **Flyway**（`src/main/resources/db/migration/`）だけで作る
+- ログ：本番は JSON の構造化ログ（`logging.structured.format.console=logstash`）、開発（dev プロファイル）は文章。ログを足すときは `LogEvents` の `event` と項目を `addKeyValue` で付ける。**パスワード・トークン・Cookie・メールアドレスそのもの・本文はログに出さない**（メールアドレスは `LogMasks.email`）。設計は [docs/ログ・監視設計.md](./docs/ログ・監視設計.md)
 - 認証：JWT（Spring Security の OAuth2 Resource Server）。アクセストークン（JWT、15分）とリフレッシュトークン（7日、DB にハッシュを保存して使うたびに交換）を、どちらも HttpOnly Cookie で渡す。CSRF 対策は Cookie ＋ ヘッダー方式
   - **`oauth2ResourceServer()` は使わない。** 使うと「トークン付きのリクエストは CSRF のチェックを省く」設定が自動で入り、Cookie でトークンを渡すこのアプリでは CSRF 攻撃ができてしまう（issue #15）。JWT の検証フィルターは `SecurityConfig` で自分で組み立てている
 

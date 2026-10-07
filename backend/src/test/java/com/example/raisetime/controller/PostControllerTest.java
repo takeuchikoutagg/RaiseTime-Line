@@ -1,5 +1,9 @@
 package com.example.raisetime.controller;
 
+import com.example.raisetime.exception.GlobalExceptionHandler;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.support.LogCapture;
 import com.example.raisetime.dto.PostResponse;
 import com.example.raisetime.dto.TimelineResponse;
 import com.example.raisetime.exception.ForbiddenException;
@@ -244,12 +248,22 @@ class PostControllerTest {
         when(postService.findById(10L, 1L))
                 .thenThrow(new IllegalStateException("connection to db-internal.example:5432 refused"));
 
-        String body = mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
-                .andExpect(jsonPath("$.message").value("予期しないエラーが発生しました"))
-                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(body).doesNotContain("db-internal", "IllegalStateException", "at com.example");
+        try (LogCapture logs = LogCapture.of(GlobalExceptionHandler.class)) {
+            String body = mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                    .andExpect(jsonPath("$.message").value("予期しないエラーが発生しました"))
+                    .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+            assertThat(body).doesNotContain("db-internal", "IllegalStateException", "at com.example");
+
+            // 利用者には見せないが、ログには原因（例外）・誰のどのリクエストかを残す
+            var event = logs.single(LogEvents.UNEXPECTED_ERROR);
+            assertThat(event.getLevel().toString()).isEqualTo("ERROR");
+            assertThat(event.getThrowableProxy().getMessage()).contains("db-internal.example");
+            assertThat(event.getMDCPropertyMap())
+                    .containsEntry(LogContext.USER_ID, "1")
+                    .containsKey(LogContext.REQUEST_ID);
+        }
     }
 
     @Test
@@ -341,9 +355,14 @@ class PostControllerTest {
     void delete_othersPost_returns403() throws Exception {
         doThrow(new ForbiddenException("この投稿は削除できません")).when(postService).delete(10L, 1L);
 
-        mockMvc.perform(delete("/api/posts/10").with(csrf()).cookie(loggedIn))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("この投稿は削除できません"));
+        try (LogCapture logs = LogCapture.of(GlobalExceptionHandler.class)) {
+            mockMvc.perform(delete("/api/posts/10").with(csrf()).cookie(loggedIn))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.message").value("この投稿は削除できません"));
+
+            // 画面からは起きない操作なので、記録して監視できるようにする
+            assertThat(LogCapture.fields(logs.single(LogEvents.ACCESS_DENIED))).containsEntry("reason", "forbidden");
+        }
     }
 
     @Test
