@@ -1,6 +1,11 @@
 package com.example.raisetime.security;
 
 import com.example.raisetime.exception.TooManyRequestsException;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.logging.LogMasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +30,8 @@ public class LoginAttemptService {
 
     private static final String EMAIL_KEY = "email:";
     private static final String IP_KEY = "ip:";
+
+    private static final Logger log = LoggerFactory.getLogger(LoginAttemptService.class);
 
     private final Clock clock;
     private final Map<String, Failures> failures = new ConcurrentHashMap<>();
@@ -53,8 +60,26 @@ public class LoginAttemptService {
 
     public void recordFailure(String email, String ip) {
         Instant now = clock.instant();
-        increment(EMAIL_KEY + email, now);
-        increment(IP_KEY + ip, now);
+        int emailFailures = increment(EMAIL_KEY + email, now);
+        int ipFailures = increment(IP_KEY + ip, now);
+        // ちょうど上限に達したとき（＝ここからログインできなくなるとき）に1回だけ記録する。
+        // メールアドレスは一部を隠す。監視（docs/ログ・監視設計.md の M-5）はこの event で気づく
+        if (emailFailures == MAX_FAILURES_PER_EMAIL) {
+            logLocked("email", email, ip, emailFailures);
+        }
+        if (ipFailures == MAX_FAILURES_PER_IP) {
+            logLocked("ip", email, ip, ipFailures);
+        }
+    }
+
+    private static void logLocked(String lockedBy, String email, String ip, int failures) {
+        log.atWarn()
+                .addKeyValue(LogContext.EVENT, LogEvents.LOGIN_LOCKED)
+                .addKeyValue("locked_by", lockedBy)
+                .addKeyValue("email", LogMasks.email(email))
+                .addKeyValue("client_ip", ip)
+                .addKeyValue("failure_count", failures)
+                .log("ログインの失敗が {} 回続いたため、一時的にログインできなくしました（{}）", failures, lockedBy);
     }
 
     // ログインできたら、そのメールアドレスの回数を消す。
@@ -74,10 +99,11 @@ public class LoginAttemptService {
         return failures.size();
     }
 
-    private void increment(String key, Instant now) {
-        failures.compute(key, (k, current) -> current == null || current.expired(now)
+    // 失敗を1回足し、足したあとの回数を返す
+    private int increment(String key, Instant now) {
+        return failures.compute(key, (k, current) -> current == null || current.expired(now)
                 ? new Failures(1, now)
-                : new Failures(current.count() + 1, current.windowStart()));
+                : new Failures(current.count() + 1, current.windowStart())).count();
     }
 
     // 上限まで失敗していたら、ログインできるようになるまでの時間。できるなら 0

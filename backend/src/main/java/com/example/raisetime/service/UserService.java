@@ -13,6 +13,8 @@ import com.example.raisetime.exception.InvalidInputException;
 import com.example.raisetime.exception.NotFoundException;
 import com.example.raisetime.exception.PayloadTooLargeException;
 import com.example.raisetime.exception.StorageException;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
 import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
@@ -219,7 +221,11 @@ public class UserService {
         try {
             imageStorage.delete(key);
         } catch (RuntimeException e) {
-            log.warn("S3 の画像を消せませんでした（あとで手で消す必要があります）: {}", key, e);
+            log.atWarn()
+                    .addKeyValue(LogContext.EVENT, LogEvents.STORAGE_DELETE_FAILED)
+                    .addKeyValue("storage_key", key)
+                    .setCause(e)
+                    .log("S3 の画像を消せませんでした（あとで手で消す必要があります）: {}", key);
         }
     }
 

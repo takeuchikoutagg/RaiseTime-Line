@@ -4,6 +4,7 @@ import com.example.raisetime.security.AuthUserJwtAuthenticationConverter;
 import com.example.raisetime.security.CookieBearerTokenResolver;
 import com.example.raisetime.security.JsonAccessDeniedHandler;
 import com.example.raisetime.security.JsonAuthenticationEntryPoint;
+import com.example.raisetime.security.UserIdLoggingFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -80,6 +81,8 @@ public class SecurityConfig {
                         jwtCookieAuthenticationFilter(jwtDecoder, jwtAuthenticationConverter, bearerTokenResolver,
                                 authenticationEntryPoint),
                         AnonymousAuthenticationFilter.class)
+                // ログイン中のユーザーの id を、ログの項目（user_id）に入れる
+                .addFilterAfter(new UserIdLoggingFilter(), AnonymousAuthenticationFilter.class)
                 // ログイン・ログアウトは AuthController の API で行うため、Spring Security の画面・Basic 認証・ログアウト機能は使わない
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)

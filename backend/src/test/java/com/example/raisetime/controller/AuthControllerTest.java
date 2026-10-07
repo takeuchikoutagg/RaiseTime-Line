@@ -1,5 +1,7 @@
 package com.example.raisetime.controller;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.example.raisetime.config.JwtConfig;
 import com.example.raisetime.config.SecurityConfig;
 import com.example.raisetime.dto.ErrorResponse.FieldErrorResponse;
@@ -11,6 +13,9 @@ import com.example.raisetime.exception.ConflictException;
 import com.example.raisetime.exception.GlobalExceptionHandler;
 import com.example.raisetime.exception.InvalidRefreshTokenException;
 import com.example.raisetime.exception.TooManyRequestsException;
+import com.example.raisetime.logging.LogContext;
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.logging.RequestLoggingFilter;
 import com.example.raisetime.mapper.UserMapper;
 import com.example.raisetime.security.AccessTokenService;
 import com.example.raisetime.security.AuthCookies;
@@ -25,6 +30,7 @@ import com.example.raisetime.security.JsonAuthenticationEntryPoint;
 import com.example.raisetime.security.LoginAttemptService;
 import com.example.raisetime.service.AuthService;
 import com.example.raisetime.service.RefreshTokenService;
+import com.example.raisetime.support.LogCapture;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -344,6 +350,77 @@ class AuthControllerTest {
                 .andExpect(cookie().doesNotExist(AuthCookies.ACCESS_TOKEN));
         verify(userMapper, never()).findByEmail(anyString());
         verify(loginAttemptService, never()).recordFailure(anyString(), anyString());
+    }
+
+    // ---------- ログ（docs/ログ・監視設計.md 第2部 3.2・3.3） ----------
+
+    @Test
+    void login_failure_isLoggedWithMaskedEmail_andNeverLogsPasswordOrRawEmail() throws Exception {
+        try (LogCapture logs = LogCapture.of(AuthController.class)) {
+            mockMvc.perform(post("/api/auth/login").with(csrf()).with(request -> {
+                        request.setRemoteAddr("203.0.113.1");
+                        return request;
+                    })
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(new LoginRequest("Taro@Example.com", "wrong-password"))))
+                    .andExpect(status().isUnauthorized())
+                    // アクセスログ・ほかのログと同じリクエストID を、レスポンスでも返す
+                    .andExpect(header().exists(RequestLoggingFilter.REQUEST_ID_HEADER));
+
+            ILoggingEvent event = logs.single(LogEvents.LOGIN_FAILED);
+            // 1件ずつは打ち間違いなどの普通の出来事（件数の急増を監視する）
+            assertThat(event.getLevel()).isEqualTo(Level.INFO);
+            assertThat(LogCapture.fields(event))
+                    .containsEntry("email", "t***@example.com")
+                    .containsEntry("client_ip", "203.0.113.1");
+            assertThat(event.getMDCPropertyMap()).containsKey(LogContext.REQUEST_ID);
+            assertThat(logs.allText()).doesNotContain("wrong-password", "taro@example.com", "Taro@Example.com");
+        }
+    }
+
+    @Test
+    void login_success_isLoggedWithUserId_andNeverLogsPasswordOrTokens() throws Exception {
+        try (LogCapture logs = LogCapture.of(AuthController.class)) {
+            MvcResult result = login();
+
+            ILoggingEvent event = logs.single(LogEvents.LOGIN_SUCCEEDED);
+            assertThat(event.getMDCPropertyMap())
+                    .containsEntry(LogContext.USER_ID, "1")
+                    .containsKey(LogContext.REQUEST_ID);
+            assertThat(logs.allText()).doesNotContain(PASSWORD, REFRESH_TOKEN,
+                    result.getResponse().getCookie(AuthCookies.ACCESS_TOKEN).getValue());
+        }
+    }
+
+    @Test
+    void signup_success_isLoggedWithUserId_withoutEmailOrPassword() throws Exception {
+        SignupRequest request = new SignupRequest("新人", "newbie", "new@example.com", PASSWORD);
+        when(authService.signup(request)).thenReturn(new AuthUser(2L, "newbie", "新人", null));
+
+        try (LogCapture logs = LogCapture.of(AuthController.class)) {
+            mockMvc.perform(post("/api/auth/signup").with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(request)))
+                    .andExpect(status().isCreated());
+
+            assertThat(logs.single(LogEvents.SIGNUP_SUCCEEDED).getMDCPropertyMap())
+                    .containsEntry(LogContext.USER_ID, "2");
+            assertThat(logs.allText()).doesNotContain(PASSWORD, "new@example.com");
+        }
+    }
+
+    @Test
+    void requestWithoutCsrfToken_isLoggedAsAccessDenied() throws Exception {
+        try (LogCapture logs = LogCapture.of(JsonAccessDeniedHandler.class)) {
+            mockMvc.perform(post("/api/auth/logout")).andExpect(status().isForbidden());
+
+            ILoggingEvent event = logs.single(LogEvents.ACCESS_DENIED);
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(LogCapture.fields(event))
+                    .containsEntry("reason", "csrf")
+                    .containsEntry("method", "POST")
+                    .containsEntry("path", "/api/auth/logout");
+        }
     }
 
     @Test
