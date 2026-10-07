@@ -89,10 +89,12 @@ public final class ImageMetadataStripper {
         int i = 8;
         while (i < data.length) {
             int length = ByteBuffer.wrap(data, i, 4).getInt();
-            int end = i + 12 + length;
-            if (length < 0 || end > data.length) {
+            // 「i + 12 + length > data.length」と書くと、length がとても大きいときに足し算があふれて負になり、
+            // チェックをすり抜ける。残りの大きさと比べる形にする
+            if (length < 0 || length > data.length - i - 12) {
                 throw new InvalidImageException("PNG のチャンクの長さが正しくありません");
             }
+            int end = i + 12 + length;
             String chunkType = new String(data, i + 4, 4, StandardCharsets.ISO_8859_1);
             if (!PNG_METADATA_CHUNKS.contains(chunkType)) {
                 out.write(data, i, end - i);
@@ -109,11 +111,13 @@ public final class ImageMetadataStripper {
         while (i < data.length) {
             String chunkType = new String(data, i, 4, StandardCharsets.ISO_8859_1);
             int size = ByteBuffer.wrap(data, i + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
-            int end = i + 8 + size + (size % 2);
-            if (size < 0 || i + 8 + size > data.length) {
+            // 足し算があふれないよう、残りの大きさと比べる（PNG と同じ）。
+            // あふれるとチェックをすり抜け、下の copyOfRange が想定外の例外（500）を投げていた
+            if (size < 0 || size > data.length - i - 8) {
                 throw new InvalidImageException("WebP のチャンクの大きさが正しくありません");
             }
-            end = Math.min(end, data.length);
+            // 大きさが奇数なら、1バイトの詰め物が続く（最後のチャンクでは無いこともある）
+            int end = Math.min(i + 8 + size + (size % 2), data.length);
             if (!WEBP_METADATA_CHUNKS.contains(chunkType)) {
                 byte[] chunk = Arrays.copyOfRange(data, i, end);
                 if (chunkType.equals("VP8X") && size > 0) {

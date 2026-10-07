@@ -65,4 +65,21 @@ describe('DeleteConfirmModal', () => {
     expect(onClose).toHaveBeenCalled()
     expect(deletePost).not.toHaveBeenCalled()
   })
+
+  // 状態遷移（送信中）：削除の通信が終わるまでボタンを押せない（docs/テスト設計書.md T-17）
+  it('削除中は「削除する」を押せない（2重に削除しない）', async () => {
+    const { user, onDeleted } = setup()
+    let finish
+    vi.mocked(deletePost).mockReturnValue(new Promise((resolve) => (finish = resolve)))
+
+    await user.click(screen.getByRole('button', { name: '削除する' }))
+
+    const deleting = screen.getByRole('button', { name: '削除中…' })
+    expect(deleting).toBeDisabled()
+    await user.click(deleting)
+    expect(deletePost).toHaveBeenCalledTimes(1)
+
+    finish()
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalledWith(10))
+  })
 })

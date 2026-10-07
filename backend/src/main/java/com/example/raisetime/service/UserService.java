@@ -51,6 +51,7 @@ public class UserService {
     static final String USERNAME_MESSAGE = "@ユーザーIDは3〜15文字の半角英小文字・数字・_で入力してください";
     static final String USERNAME_TAKEN = "この@ユーザーIDはすでに使われています";
     static final String BIO_MESSAGE = "自己紹介は160文字以内で入力してください";
+    static final String BIO_CHARACTER_MESSAGE = "自己紹介に使えない文字が含まれています";
     static final int MAX_QUERY_LENGTH = 50;
     static final int SEARCH_PAGE_SIZE = 20;
     static final String QUERY_MESSAGE = "検索キーワードは1〜50文字で入力してください";
@@ -99,7 +100,9 @@ public class UserService {
         if (keyword.startsWith("@")) {
             keyword = keyword.substring(1).strip();
         }
-        if (keyword.isEmpty() || length(keyword) > MAX_QUERY_LENGTH) {
+        // ゼロ幅スペースなどの見えない文字だけ・制御文字（NUL・改行・タブなど）を含むキーワードも受け付けない
+        if (!VisibleText.hasVisibleCharacter(keyword) || length(keyword) > MAX_QUERY_LENGTH
+                || NoControlCharactersValidator.containsControlCharacter(keyword)) {
             throw new InvalidInputException("q", QUERY_MESSAGE);
         }
         if (offset < 0) {
@@ -156,6 +159,10 @@ public class UserService {
         String newBio = bio == null ? "" : LineBreaks.normalize(bio);
         if (length(newBio) > MAX_BIO_LENGTH) {
             throw new InvalidInputException("bio", BIO_MESSAGE);
+        }
+        // NUL 文字などの制御文字（改行・タブ以外）は保存できない・表示できないので受け付けない
+        if (NoControlCharactersValidator.containsControlCharacterExceptLineBreakAndTab(newBio)) {
+            throw new InvalidInputException("bio", BIO_CHARACTER_MESSAGE);
         }
         // @ユーザーID を変えるときは、ほかの人と重ならないか確かめる（同時に同じ値にされたら、下の UNIQUE 制約で止まる）
         if (!username.equals(user.getUsername()) && userMapper.existsByUsername(username)) {

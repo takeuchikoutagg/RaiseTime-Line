@@ -167,4 +167,31 @@ class CommentServiceTest {
         assertThatThrownBy(() -> commentService.create(10L, TARO, "こんにちは"))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-06 境界値：ちょうど20件なら、続きは無い
+    @Test
+    void list_exactly20_hasNoNextCursor() {
+        postExists(10L);
+        List<CommentWithAuthor> rows = LongStream.rangeClosed(1, 20).mapToObj(CommentServiceTest::row).toList();
+        when(commentMapper.findByPostId(10L, null, 21)).thenReturn(rows);
+
+        CommentListResponse response = commentService.list(10L, null);
+
+        assertThat(response.items()).hasSize(20);
+        assertThat(response.nextCursor()).isNull();
+    }
+
+    // T-21（不具合 B-1）：NUL 文字などの制御文字は 400。以前は保存のときに DB のエラーになり、
+    // 「投稿が見つかりません」（404）という間違ったメッセージを返していた
+    @Test
+    void create_bodyWithControlCharacters_isRejected_beforeSaving() {
+        for (String body : new String[] {"a\u0000b", "ベル\u0007"}) {
+            assertThatThrownBy(() -> commentService.create(10L, TARO, body))
+                    .isInstanceOf(InvalidInputException.class)
+                    .hasMessage("コメントに使えない文字が含まれています");
+        }
+        verify(commentMapper, never()).insert(any());
+    }
 }

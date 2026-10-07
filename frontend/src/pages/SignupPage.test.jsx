@@ -97,4 +97,23 @@ describe('SignupPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('通信に失敗しました')
   })
+
+  // 状態遷移（送信中）：通信が終わるまでボタンを押せない（2重送信を防ぐ。docs/テスト設計書.md T-17）
+  it('登録中はボタンを押せず、失敗したらもう一度押せる', async () => {
+    const user = userEvent.setup()
+    let fail
+    const signup = vi.fn().mockReturnValue(new Promise((_, reject) => (fail = reject)))
+    renderSignup({ signup })
+
+    await fillForm(user)
+    await user.click(screen.getByRole('button', { name: '登録する' }))
+
+    const submitting = screen.getByRole('button', { name: '登録中…' })
+    expect(submitting).toBeDisabled()
+    await user.click(submitting)
+    expect(signup).toHaveBeenCalledTimes(1)
+
+    fail(new Error('通信に失敗しました'))
+    expect(await screen.findByRole('button', { name: '登録する' })).toBeEnabled()
+  })
 })

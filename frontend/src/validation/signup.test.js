@@ -43,6 +43,10 @@ describe('validateSignup', () => {
 
   it('パスワード：8〜64文字、UTF-8 で72バイトまで', () => {
     expect(validateSignup({ ...valid, password: '1234567', passwordConfirm: '1234567' })).toHaveProperty('password')
+    // 境界値：8文字・64文字は OK、65文字は NG（docs/テスト設計書.md T-03）
+    expect(validateSignup({ ...valid, password: '12345678', passwordConfirm: '12345678' })).toEqual({})
+    expect(validateSignup({ ...valid, password: 'a'.repeat(64), passwordConfirm: 'a'.repeat(64) })).toEqual({})
+    expect(validateSignup({ ...valid, password: 'a'.repeat(65), passwordConfirm: 'a'.repeat(65) })).toHaveProperty('password')
     const tooManyBytes = 'あ'.repeat(25)
     expect(validateSignup({ ...valid, password: tooManyBytes, passwordConfirm: tooManyBytes }).password).toBe(
       'パスワードが長すぎます。全角文字を減らしてください',

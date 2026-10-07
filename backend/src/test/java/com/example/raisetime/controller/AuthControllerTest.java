@@ -584,4 +584,25 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/auth/me").cookie(token))
                 .andExpect(status().isUnauthorized());
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-28 条件網羅：Cookie はあるが、目的の Cookie が無い・値が空のとき
+    @Test
+    void me_withOtherCookiesOnly_orBlankAccessToken_returns401() throws Exception {
+        mockMvc.perform(get("/api/auth/me").cookie(new Cookie("theme", "dark")))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/auth/me").cookie(new Cookie("theme", "dark"), accessTokenCookie("")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refresh_withOtherCookiesOnly_orBlankRefreshToken_returns401_withoutTouchingTokens() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").with(csrf()).cookie(new Cookie("theme", "dark")))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/auth/refresh").with(csrf())
+                        .cookie(new Cookie("theme", "dark"), new Cookie(AuthCookies.REFRESH_TOKEN, " ")))
+                .andExpect(status().isUnauthorized());
+        verify(refreshTokenService, never()).rotate(any());
+    }
 }

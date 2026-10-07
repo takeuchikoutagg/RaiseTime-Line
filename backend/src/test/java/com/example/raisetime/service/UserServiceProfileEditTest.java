@@ -1,5 +1,8 @@
 package com.example.raisetime.service;
 
+import com.example.raisetime.exception.NotFoundException;
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.support.LogCapture;
 import com.example.raisetime.dto.UserProfileResponse;
 import com.example.raisetime.entity.User;
 import com.example.raisetime.entity.UserProfile;
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.multipart.MultipartFile;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -319,6 +323,121 @@ class UserServiceProfileEditTest {
         // 同時に保存されたときに古い画像を正しく消せるよう、行をロックして取る
         verify(userMapper).findByIdForUpdate(1L);
         verify(userMapper, never()).findById(any());
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "", null);
+    }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-01 境界値：@ユーザーID 15文字は受け付ける（16文字は update_invalidInputs_areRejected_beforeSaving）
+    @Test
+    void update_username15Characters_isAccepted() {
+        currentUser(null);
+
+        userService.updateProfile(1L, "山田太郎", "a".repeat(15), "", null, false);
+
+        verify(userMapper).updateProfile(1L, "山田太郎", "a".repeat(15), "", null);
+    }
+
+    // T-11 デシジョンテーブル D-4 #6：新しい画像と「画像を外す」の両方が来たら、新しい画像を使う
+    @Test
+    void update_newAvatarAndRemoveAvatarTogether_usesTheNewAvatar() {
+        currentUser("avatars/1/old.png");
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", "", avatar(PNG), true);
+
+        ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        verify(imageStorage).put(key.capture(), any(), eq("image/png"));
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "", key.getValue());
+        commit();
+        verify(imageStorage).delete("avatars/1/old.png");
+    }
+
+    // T-12 デシジョンテーブル D-4 #7：もともと画像が無ければ、「画像を外す」でも S3 には何もしない
+    @Test
+    void update_removeAvatarWithoutCurrentAvatar_doesNotTouchStorage() {
+        currentUser(null);
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", "", null, true);
+
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "", null);
+        commit();
+        verify(imageStorage, never()).delete(anyString());
+        verify(imageStorage, never()).put(anyString(), any(), anyString());
+    }
+
+    // T-13 デシジョンテーブル D-4 #8：トークンは有効でも、ユーザーが削除されていたら 404
+    @Test
+    void update_userDeletedInTheMeantime_isNotFound() {
+        when(userMapper.findByIdForUpdate(1L)).thenReturn(null);
+
+        assertThatThrownBy(() -> userService.updateProfile(1L, "山田太郎", "taro_dev", "", null, false))
+                .isInstanceOf(NotFoundException.class);
+        verify(userMapper, never()).updateProfile(any(), any(), any(), any(), any());
+    }
+
+    // T-21（不具合 B-1）：自己紹介の NUL 文字などは 400。改行とタブは使える
+    @Test
+    void update_bioWithControlCharacters_isRejected_butLineBreakAndTabAreAccepted() {
+        currentUser(null);
+
+        for (String bio : new String[] {"x\u0000y", "ベル\u0007"}) {
+            assertThatThrownBy(() -> userService.updateProfile(1L, "山田太郎", "taro_dev", bio, null, false))
+                    .isInstanceOf(InvalidInputException.class)
+                    .hasMessage("自己紹介に使えない文字が含まれています");
+        }
+        verify(userMapper, never()).updateProfile(any(), any(), any(), any(), any());
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", "1行目\n\t2行目", null, false);
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "1行目\n\t2行目", null);
+    }
+
+    // T-24 条件網羅：名前が送られてこなかった（null）ときも、入力の誤りとして 400
+    @Test
+    void update_nameMissing_isRejected() {
+        currentUser(null);
+
+        assertThatThrownBy(() -> userService.updateProfile(1L, null, "taro_dev", "", null, false))
+                .isInstanceOf(InvalidInputException.class).hasMessage("名前は1〜50文字で入力してください");
+    }
+
+    // T-24：空のファイル（画像を選ばずに送った）は、画像を変えない扱い
+    @Test
+    void update_emptyAvatarFile_keepsCurrentAvatar() {
+        currentUser("avatars/1/old.png");
+
+        userService.updateProfile(1L, "山田太郎", "taro_dev", "", avatar(new byte[0]), false);
+
+        verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "", "avatars/1/old.png");
+        verify(imageStorage, never()).put(anyString(), any(), anyString());
+    }
+
+    // T-24：アップロードされたファイルを読めなかったときは、想定外のエラーとして扱う（500）
+    @Test
+    void update_avatarCannotBeRead_isUnexpectedError() throws Exception {
+        currentUser(null);
+        MultipartFile unreadable = org.mockito.Mockito.mock(MultipartFile.class);
+        when(unreadable.isEmpty()).thenReturn(false);
+        when(unreadable.getSize()).thenReturn(10L);
+        when(unreadable.getBytes()).thenThrow(new java.io.IOException("disk error"));
+
+        assertThatThrownBy(() -> userService.updateProfile(1L, "山田太郎", "taro_dev", "", unreadable, false))
+                .isInstanceOf(java.io.UncheckedIOException.class);
+        verify(userMapper, never()).updateProfile(any(), any(), any(), any(), any());
+    }
+
+    // T-24：古いプロフィール画像を S3 から消せなくても、編集は成功にする（消し残しはログに出して、あとで手で消す）
+    @Test
+    void update_oldAvatarCannotBeDeleted_stillSucceeds_andIsLogged() {
+        currentUser("avatars/1/old.png");
+        doThrow(new RuntimeException("S3 down")).when(imageStorage).delete("avatars/1/old.png");
+
+        try (LogCapture logs = LogCapture.of(UserService.class)) {
+            userService.updateProfile(1L, "山田太郎", "taro_dev", "", null, true);
+            commit();
+
+            assertThat(LogCapture.fields(logs.single(LogEvents.STORAGE_DELETE_FAILED)))
+                    .containsEntry("storage_key", "avatars/1/old.png");
+        }
         verify(userMapper).updateProfile(1L, "山田太郎", "taro_dev", "", null);
     }
 }

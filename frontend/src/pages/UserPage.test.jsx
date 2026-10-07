@@ -1,8 +1,8 @@
-import { cleanup, screen, within } from '@testing-library/react'
+import { act, cleanup, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client.js'
-import { checkNewPosts, deletePost, fetchTimeline } from '../api/posts.js'
+import { checkNewPosts, deletePost, fetchTimeline, updatePost } from '../api/posts.js'
 import { fetchUser, fetchUserPosts, followUser, updateProfile } from '../api/users.js'
 import App from '../App.jsx'
 import { installIntersectionObserverMock } from '../test/intersectionObserver.js'
@@ -18,6 +18,7 @@ vi.mock('../api/posts.js', () => ({
   unlikePost: vi.fn(),
   fetchComments: vi.fn(),
   createComment: vi.fn(),
+  updatePost: vi.fn(),
 }))
 
 vi.mock('../api/users.js', () => ({
@@ -317,5 +318,55 @@ describe('UserPage', () => {
 
     expect(await screen.findByText('@taro_new')).toBeInTheDocument()
     expect(fetchUser).toHaveBeenLastCalledWith('taro_new')
+  })
+
+  // ---------- テスト技法から足したケース（docs/テスト設計書.md T-31。分岐網羅） ----------
+
+  it('自分の投稿を編集すると、その場で内容が変わり「編集済み」が付く', async () => {
+    vi.mocked(fetchUser).mockResolvedValue(profile({ username: 'taro_dev', name: '山田太郎', isMe: true }))
+    vi.mocked(fetchUserPosts).mockResolvedValue({
+      items: [post(2, { author: taro, isMine: true }), post(1, { author: taro, isMine: true })],
+      nextCursor: null,
+    })
+    vi.mocked(updatePost).mockResolvedValue(
+      post(2, { author: taro, isMine: true, body: '投稿2（直した）', editedAt: new Date().toISOString() }),
+    )
+    const { user } = renderPage('/users/taro_dev')
+
+    const target = (await screen.findByText('投稿2')).closest('article')
+    await user.click(within(target).getByRole('button', { name: 'メニュー' }))
+    await user.click(within(target).getByRole('menuitem', { name: '編集' }))
+    const dialog = screen.getByRole('dialog', { name: '投稿を編集' })
+    await user.clear(within(dialog).getByLabelText('本文'))
+    await user.type(within(dialog).getByLabelText('本文'), '投稿2（直した）')
+    await user.click(within(dialog).getByRole('button', { name: '保存する' }))
+
+    expect(updatePost).toHaveBeenCalledWith(2, { body: '投稿2（直した）', keepImageIds: [], images: [] })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const edited = screen.getByText('投稿2（直した）').closest('article')
+    expect(within(edited).getByText('· 編集済み')).toBeInTheDocument()
+    // 並び順は変わらない
+    expect(screen.getAllByRole('article')[0]).toBe(edited)
+    expect(screen.getByText('投稿1')).toBeInTheDocument()
+  })
+
+  it('続きの読み込みに失敗したら、自動では読み直さず「再読み込み」ボタンを出す', async () => {
+    vi.mocked(fetchUser).mockResolvedValue(profile())
+    vi.mocked(fetchUserPosts)
+      .mockResolvedValueOnce({ items: [post(3)], nextCursor: 3 })
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ items: [post(2)], nextCursor: null })
+    const { user } = renderPage()
+    await screen.findByText('投稿3')
+
+    await io.scrollToBottomWhenObserved()
+    const retry = await screen.findByRole('button', { name: '再読み込み' })
+    // 失敗が続いて何度もリクエストしないよう、スクロールしても自動では読み込まない
+    act(() => io.scrollToBottom())
+    expect(fetchUserPosts).toHaveBeenCalledTimes(2)
+
+    await user.click(retry)
+    expect(await screen.findByText('投稿2')).toBeInTheDocument()
+    expect(bodies()).toEqual(['投稿3', '投稿2'])
   })
 })

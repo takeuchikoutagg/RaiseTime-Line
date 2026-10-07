@@ -10,6 +10,7 @@ import com.example.raisetime.mapper.CommentMapper;
 import com.example.raisetime.mapper.PostMapper;
 import com.example.raisetime.security.AuthUser;
 import com.example.raisetime.storage.ImageStorage;
+import com.example.raisetime.validation.NoControlCharactersValidator;
 import com.example.raisetime.validation.VisibleText;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class CommentService {
     static final int MAX_BODY_LENGTH = 280;
     static final int PAGE_SIZE = 20;
     static final String BODY_MESSAGE = "コメントは1〜280文字で入力してください";
+    static final String BODY_CHARACTER_MESSAGE = "コメントに使えない文字が含まれています";
 
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
@@ -66,6 +68,10 @@ public class CommentService {
         // 空白・見えない文字（ゼロ幅スペースなど）だけは不可。文字数は絵文字も1文字と数える（投稿の本文と同じ）
         if (!VisibleText.hasVisibleCharacter(body) || body.codePointCount(0, body.length()) > MAX_BODY_LENGTH) {
             throw new InvalidInputException("body", BODY_MESSAGE);
+        }
+        // NUL 文字などの制御文字（改行・タブ以外）は保存できない・表示できないので受け付けない
+        if (NoControlCharactersValidator.containsControlCharacterExceptLineBreakAndTab(body)) {
+            throw new InvalidInputException("body", BODY_CHARACTER_MESSAGE);
         }
     }
 

@@ -77,4 +77,16 @@ class AccessTokenServiceTest {
         assertThatThrownBy(() -> new AuthProperties("too-short", Duration.ofMinutes(15), Duration.ofDays(7), false))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    // 境界値：31バイトは不可、32バイトは可。設定し忘れ（null）も起動させない
+    @Test
+    void authProperties_secretBoundary_andMissingSecret() {
+        assertThatThrownBy(() -> new AuthProperties("a".repeat(31), Duration.ofMinutes(15), Duration.ofDays(7), false))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new AuthProperties(null, Duration.ofMinutes(15), Duration.ofDays(7), false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("JWT_SECRET");
+        assertThat(new AuthProperties("a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(7), false).jwtSecret())
+                .hasSize(32);
+    }
 }

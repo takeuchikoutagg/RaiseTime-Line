@@ -373,4 +373,76 @@ class PostControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-07 境界値・エラー推測：Long の範囲を超える id は、数字でないのと同じく 400（500 にしない）
+    @Test
+    void findById_idBeyondLongRange_returns400() throws Exception {
+        mockMvc.perform(get("/api/posts/99999999999999999999").cookie(loggedIn))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/timeline").param("before", "99999999999999999999").cookie(loggedIn))
+                .andExpect(status().isBadRequest());
+    }
+
+    // T-09 デシジョンテーブル D-1 #6：未ログイン かつ CSRF トークンなしは 403（CSRF を先に確かめる）
+    @Test
+    void withoutLoginAndWithoutCsrf_returns403() throws Exception {
+        mockMvc.perform(delete("/api/posts/10")).andExpect(status().isForbidden());
+        mockMvc.perform(multipart("/api/posts").param("body", "x")).andExpect(status().isForbidden());
+        // CSRF トークンがあれば、次にログインを確かめて 401
+        mockMvc.perform(delete("/api/posts/10").with(csrf())).andExpect(status().isUnauthorized());
+    }
+
+    // T-30 分岐網羅：GlobalExceptionHandler の、ほかのテストでは通らない例外
+
+    // リクエスト全体が上限（spring.servlet.multipart.*）を超えたとき。Spring がリクエストを読む段階で投げる
+    @Test
+    void uploadBeyondServerLimit_returns413() throws Exception {
+        when(postService.create(any(), anyString(), any()))
+                .thenThrow(new org.springframework.web.multipart.MaxUploadSizeExceededException(5 * 1024 * 1024));
+
+        mockMvc.perform(multipart("/api/posts").param("body", "x").with(csrf()).cookie(loggedIn))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"))
+                .andExpect(jsonPath("$.message").value("画像は1枚5MBまでです"));
+    }
+
+    @Test
+    void unknownApiPath_returns404Json() throws Exception {
+        mockMvc.perform(get("/api/no-such-api").cookie(loggedIn))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("見つかりません"));
+    }
+
+    @Test
+    void accessDeniedExceptionFromController_returns403Json() throws Exception {
+        when(postService.findById(10L, 1L))
+                .thenThrow(new org.springframework.security.access.AccessDeniedException("denied"));
+
+        mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("この操作を行う権限がありません"));
+    }
+
+    @Test
+    void responseStatusException_usesItsStatusAndReason() throws Exception {
+        when(postService.findById(10L, 1L))
+                .thenThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "メンテナンス中です"))
+                .thenThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.GONE));
+
+        mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.message").value("メンテナンス中です"));
+        // 理由が無ければ、ステータスの名前を出す
+        mockMvc.perform(get("/api/posts/10").cookie(loggedIn))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.message").value("Gone"));
+    }
 }
