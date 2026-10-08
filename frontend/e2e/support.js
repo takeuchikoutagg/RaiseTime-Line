@@ -106,3 +106,30 @@ export async function chooseFiles(page, trigger, files) {
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), trigger()])
   await chooser.setFiles(files)
 }
+
+// 1×1 ピクセルの GIF（GIF89a）。GIF は縮めずにそのまま送る形式
+export function gif(name) {
+  const buffer = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64')
+  return { name, mimeType: 'image/gif', buffer }
+}
+
+// JPEG は、そのブラウザの canvas で作る（Node だけでは作りにくいため）。位置情報が入りうる形式で、送る前に必ず作り直される
+export async function jpeg(page, name, [r, g, b] = [240, 140, 80], width = 160, height = 100) {
+  const base64 = await page.evaluate(
+    async ([w, h, color]) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const context = canvas.getContext('2d')
+      context.fillStyle = color
+      context.fillRect(0, 0, w, h)
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      let binary = ''
+      for (const byte of bytes) binary += String.fromCharCode(byte)
+      return btoa(binary)
+    },
+    [width, height, `rgb(${r}, ${g}, ${b})`],
+  )
+  return { name, mimeType: 'image/jpeg', buffer: Buffer.from(base64, 'base64') }
+}

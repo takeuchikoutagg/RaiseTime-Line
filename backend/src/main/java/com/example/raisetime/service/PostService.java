@@ -19,6 +19,7 @@ import com.example.raisetime.storage.ImageMetadataStripper;
 import com.example.raisetime.storage.ImageStorage;
 import com.example.raisetime.storage.ImageType;
 import com.example.raisetime.validation.LineBreaks;
+import com.example.raisetime.validation.NoControlCharactersValidator;
 import com.example.raisetime.validation.VisibleText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,7 @@ public class PostService {
     static final int PAGE_SIZE = 20;
 
     static final String BODY_MESSAGE = "本文は1〜280文字で入力してください";
+    static final String BODY_CHARACTER_MESSAGE = "本文に使えない文字が含まれています";
     static final String TOO_MANY_IMAGES = "画像は4枚まで添付できます";
     static final String IMAGE_TYPE_MESSAGE = "JPEG・PNG・GIF・WebP の画像を選んでください";
     static final String IMAGE_TOO_LARGE = "画像は1枚5MBまでです";
@@ -92,6 +94,10 @@ public class PostService {
         // 空白・見えない文字（ゼロ幅スペースなど）だけは不可。文字数は絵文字も1文字と数える
         if (!VisibleText.hasVisibleCharacter(body) || body.codePointCount(0, body.length()) > MAX_BODY_LENGTH) {
             throw new InvalidInputException("body", BODY_MESSAGE);
+        }
+        // NUL 文字などの制御文字（改行・タブ以外）は保存できない・表示できないので受け付けない
+        if (NoControlCharactersValidator.containsControlCharacterExceptLineBreakAndTab(body)) {
+            throw new InvalidInputException("body", BODY_CHARACTER_MESSAGE);
         }
     }
 

@@ -108,4 +108,39 @@ class SignupRequestValidationTest {
         assertThat(invalidFields(new SignupRequest("太郎", "taro_dev", "taro@example.com", "あ".repeat(24))))
                 .isEmpty();
     }
+
+    // ---------- 境界値・null（docs/テスト設計書.md 2.1。T-01〜T-03・T-26） ----------
+
+    @Test
+    void username_15characters_isValid() {
+        assertThat(invalidFields(new SignupRequest("太郎", "a".repeat(15), "taro@example.com", "password123")))
+                .isEmpty();
+    }
+
+    @Test
+    void email_255characters_isValid_256_isInvalid() {
+        // @ より前は64文字まで、ドメインは「.」で区切った1つが63文字まで、という形式の決まりの中で長さを作る
+        String local = "a".repeat(64);
+        String domain255 = "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(58) + ".com";
+        String email255 = local + "@" + domain255;
+        String email256 = local + "@d" + domain255;
+        assertThat(email255).hasSize(255);
+        assertThat(email256).hasSize(256);
+
+        assertThat(invalidFields(new SignupRequest("太郎", "taro_dev", email255, "password123"))).isEmpty();
+        assertThat(invalidFields(new SignupRequest("太郎", "taro_dev", email256, "password123")))
+                .containsExactly("email");
+    }
+
+    @Test
+    void password_8characters_isValid() {
+        assertThat(invalidFields(new SignupRequest("太郎", "taro_dev", "taro@example.com", "12345678"))).isEmpty();
+    }
+
+    // 送られてこなかった項目（null）は、項目ごとに1つずつエラーにする（文字数などのチェックは null を素通しする）
+    @Test
+    void nullFields_areEachReported() {
+        assertThat(invalidFields(new SignupRequest(null, null, null, null)))
+                .containsExactlyInAnyOrder("name", "username", "email", "password");
+    }
 }

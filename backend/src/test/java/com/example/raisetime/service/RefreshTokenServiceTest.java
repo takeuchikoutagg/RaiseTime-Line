@@ -152,4 +152,31 @@ class RefreshTokenServiceTest {
 
         verify(refreshTokenMapper, never()).revokeFamily(any(), any());
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-16 状態遷移 S-1：使用済み かつ 期限切れのトークンでも、系列ごと無効にする。
+    // 期限切れを先に確かめると、盗まれたトークンが期限のあとに使われたとき、系列が無効にならない
+    @Test
+    void rotate_reusedAndExpiredToken_stillRevokesWholeFamily() {
+        when(refreshTokenMapper.findByTokenHash(any()))
+                .thenReturn(stored(NOW.minusSeconds(60), NOW.minusSeconds(3600)));
+
+        assertThatThrownBy(() -> service.rotate("raw")).isInstanceOf(InvalidRefreshTokenException.class);
+        verify(refreshTokenMapper).revokeFamily(FAMILY, NOW);
+    }
+
+    // T-15 状態遷移 S-1：毎日の削除（スケジュールで呼ばれる処理）。今の時刻を渡して、件数をログに出す
+    @Test
+    void deleteExpired_deletesTokensExpiredByNow_andLogsTheCount() {
+        when(refreshTokenMapper.deleteExpired(NOW)).thenReturn(4);
+
+        try (LogCapture logs = LogCapture.of(RefreshTokenService.class)) {
+            service.deleteExpired();
+
+            assertThat(LogCapture.fields(logs.single(LogEvents.REFRESH_TOKENS_PURGED)))
+                    .containsEntry("deleted_count", 4);
+        }
+        verify(refreshTokenMapper).deleteExpired(NOW);
+    }
 }

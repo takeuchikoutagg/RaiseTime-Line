@@ -603,4 +603,118 @@ class PostServiceTest {
 
         verify(postMapper).updateBody(5L, "1行目\n2行目");
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-05 境界値：ちょうど 5MB は受け付ける（5MB+1バイトは create_imageOver5MB_isRejected）
+    @Test
+    void create_imageExactly5MB_isAccepted() {
+        // JPEG は EOI のあとのデータをそのまま残すので、ちょうどの大きさを作りやすい
+        byte[] exactly = new byte[5 * 1024 * 1024];
+        System.arraycopy(JPEG, 0, exactly, 0, JPEG.length);
+
+        postService.create(TARO, "ちょうど5MB", List.of(file("max.jpg", exactly)));
+
+        verify(imageStorage).put(anyString(), any(), eq("image/jpeg"));
+    }
+
+    // T-10 デシジョンテーブル D-3 #6：先頭は画像の形でも、途中で切れているものは受け付けない
+    @Test
+    void create_truncatedImage_isRejected_beforeSaving() {
+        byte[] truncatedPng = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n',
+            0, 0, 0, 50, 'I', 'D', 'A', 'T', 1, 2, 3};
+
+        assertThatThrownBy(() -> postService.create(TARO, "壊れた画像", List.of(file("broken.png", truncatedPng))))
+                .isInstanceOf(InvalidInputException.class)
+                .hasMessage("JPEG・PNG・GIF・WebP の画像を選んでください");
+        verify(imageStorage, never()).put(anyString(), any(), anyString());
+        verify(postMapper, never()).insert(any(Post.class));
+    }
+
+    // T-21（不具合 B-1）：NUL 文字などの制御文字は、保存の前に 400 にする（PostgreSQL は NUL を保存できず、500 になっていた）
+    @Test
+    void create_andUpdate_bodyWithControlCharacters_isRejected_beforeSaving() {
+        editablePost(5, 1);
+        for (String body : new String[] {"a\u0000b", "ベル\u0007", "色\u001B[31m"}) {
+            assertThatThrownBy(() -> postService.create(TARO, body, null))
+                    .isInstanceOf(InvalidInputException.class)
+                    .hasMessage("本文に使えない文字が含まれています");
+            assertThatThrownBy(() -> postService.update(5L, TARO, body, null, null))
+                    .isInstanceOf(InvalidInputException.class)
+                    .hasMessage("本文に使えない文字が含まれています");
+        }
+        verify(postMapper, never()).insert(any(Post.class));
+        verify(postMapper, never()).updateBody(any(), any());
+    }
+
+    // 改行とタブは、今までどおり使える
+    @Test
+    void create_bodyWithLineBreakAndTab_isAccepted() {
+        postService.create(TARO, "1行目\n\t字下げした2行目", null);
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postMapper).insert(captor.capture());
+        assertThat(captor.getValue().getBody()).isEqualTo("1行目\n\t字下げした2行目");
+    }
+
+    // T-25 条件網羅：画像の一覧に null が混ざっていても、画像なしとして扱う
+    @Test
+    void create_nullEntriesInImages_areIgnored() {
+        List<MultipartFile> files = new ArrayList<>();
+        files.add(null);
+        files.add(file("a.png", PNG));
+
+        postService.create(TARO, "null が混ざる", files);
+
+        verify(imageStorage, times(1)).put(anyString(), any(), eq("image/png"));
+    }
+
+    // T-25：アップロードされたファイルを読めなかったとき（ディスクの障害など）は、想定外のエラーとして扱う（500）
+    @Test
+    void create_imageCannotBeRead_isUnexpectedError() throws Exception {
+        MultipartFile unreadable = org.mockito.Mockito.mock(MultipartFile.class);
+        when(unreadable.isEmpty()).thenReturn(false);
+        when(unreadable.getSize()).thenReturn(10L);
+        when(unreadable.getBytes()).thenThrow(new java.io.IOException("disk error"));
+
+        assertThatThrownBy(() -> postService.create(TARO, "読めない", List.of(unreadable)))
+                .isInstanceOf(java.io.UncheckedIOException.class);
+        verify(imageStorage, never()).put(anyString(), any(), anyString());
+    }
+
+    // T-04 境界値：残す2枚＋足す2枚＝4枚は受け付ける（5枚は update_moreThan4ImagesInTotal_isRejected_beforeSaving）
+    @Test
+    void update_keptPlusNewImagesExactly4_isAccepted() {
+        editablePost(5, 1, image(5, "posts/5/a.png", 1), image(5, "posts/5/b.png", 2));
+
+        postService.update(5L, TARO, "4枚", List.of(51L, 52L), List.of(file("c.png", PNG), file("d.jpg", JPEG)));
+
+        assertThat(insertedImages()).extracting(PostImage::getPosition).containsExactly(3, 4);
+    }
+
+    // T-06 境界値：ちょうど20件なら、続きは無い（21件なら timeline_whenMoreThan20_returns20_andNextCursorIsLastId）
+    @Test
+    void timeline_exactly20_hasNoNextCursor() {
+        List<PostWithAuthor> rows = LongStream.rangeClosed(1, 20).map(i -> 100 - i)
+                .mapToObj(id -> row(id, 1, "taro_dev")).toList();
+        when(postMapper.findTimeline(1L, null, 21)).thenReturn(rows);
+
+        TimelineResponse response = postService.timeline(1L, null);
+
+        assertThat(response.items()).hasSize(20);
+        assertThat(response.nextCursor()).isNull();
+    }
+
+    // 分岐網羅：投稿者がプロフィール画像を設定していれば URL を返し、していなければ null
+    @Test
+    void timeline_authorAvatarUrl_isSetOnlyWhenAuthorHasAvatar() {
+        PostWithAuthor withAvatar = row(9, 2, "hanako");
+        withAvatar.setAuthorAvatarKey("avatars/2/a.png");
+        when(postMapper.findTimeline(1L, null, 21)).thenReturn(List.of(withAvatar, row(8, 1, "taro_dev")));
+
+        TimelineResponse response = postService.timeline(1L, null);
+
+        assertThat(response.items()).extracting(item -> item.author().avatarUrl())
+                .containsExactly("http://img/avatars/2/a.png", null);
+    }
 }

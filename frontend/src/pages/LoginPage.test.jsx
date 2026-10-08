@@ -60,4 +60,24 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('link', { name: '新規登録' })).toHaveAttribute('href', '/signup')
   })
+
+  // 状態遷移（送信中）：通信が終わるまでボタンを押せない（2重送信を防ぐ。docs/テスト設計書.md T-17）
+  it('ログイン中はボタンを押せず、失敗したらもう一度押せる', async () => {
+    const user = userEvent.setup()
+    let fail
+    const login = vi.fn().mockReturnValue(new Promise((_, reject) => (fail = reject)))
+    renderLogin({ login })
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'taro@example.com')
+    await user.type(screen.getByLabelText('パスワード'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'ログイン' }))
+
+    const submitting = screen.getByRole('button', { name: 'ログイン中…' })
+    expect(submitting).toBeDisabled()
+    await user.click(submitting)
+    expect(login).toHaveBeenCalledTimes(1)
+
+    fail(new ApiError(401, { message: 'メールアドレスまたはパスワードが正しくありません' }))
+    expect(await screen.findByRole('button', { name: 'ログイン' })).toBeEnabled()
+  })
 })

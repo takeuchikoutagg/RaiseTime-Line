@@ -112,4 +112,30 @@ class UserServiceSearchTest {
 
         verify(userMapper).search(anyString(), anyString(), anyLong(), anyInt(), anyInt());
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md） ----------
+
+    // T-06 境界値：ちょうど20件なら、続きは無い
+    @Test
+    void search_exactly20_hasNoNextOffset() {
+        List<UserSummary> rows = LongStream.rangeClosed(1, 20).mapToObj(i -> row(i + 10, "user" + i, false)).toList();
+        when(userMapper.search("user", "user", 1L, 21, 0)).thenReturn(rows);
+
+        UserSearchResponse response = userService.search("user", 0, 1L);
+
+        assertThat(response.items()).hasSize(20);
+        assertThat(response.nextOffset()).isNull();
+    }
+
+    // T-20：見えない文字だけ（ゼロ幅スペースなど）のキーワードは、空と同じ扱い。
+    // T-21（不具合 B-1）：NUL 文字などの制御文字を含むキーワードは 400（以前は DB のエラーで 500 になっていた）
+    @Test
+    void search_invisibleOnlyOrControlCharacterKeyword_isRejected() {
+        for (String query : new String[] {"\u200B", "\u200B\uFEFF", "a\u0000b", "a\nb", "a\tb"}) {
+            assertThatThrownBy(() -> userService.search(query, 0, 1L))
+                    .isInstanceOf(InvalidInputException.class)
+                    .hasMessage("検索キーワードは1〜50文字で入力してください");
+        }
+        verify(userMapper, never()).search(any(), any(), any(), anyInt(), anyInt());
+    }
 }

@@ -147,4 +147,99 @@ class ImageMetadataStripperTest {
         assertThatThrownBy(() -> ImageMetadataStripper.strip(brokenPng, ImageType.PNG))
                 .isInstanceOf(ImageMetadataStripper.InvalidImageException.class);
     }
+
+    // ---------- テスト技法から足したケース（docs/テスト設計書.md T-22。分岐網羅 100% を目標にする） ----------
+    // 利用者が送ってくる、信用できないデータを読む処理なので、壊れ方ごとに「400 用の例外になる」ことを確かめる
+
+    private static byte[] bytes(int... values) {
+        byte[] data = new byte[values.length];
+        for (int i = 0; i < values.length; i++) {
+            data[i] = (byte) values[i];
+        }
+        return data;
+    }
+
+    private static void assertInvalid(byte[] data, ImageType type) {
+        assertThatThrownBy(() -> ImageMetadataStripper.strip(data, type))
+                .isInstanceOf(ImageMetadataStripper.InvalidImageException.class);
+    }
+
+    @Test
+    void jpeg_paddingAndMarkersWithoutLength_areHandled() {
+        // 埋め草の FF は読み飛ばす
+        assertThat(ImageMetadataStripper.strip(bytes(0xFF, 0xD8, 0xFF, 0xFF, 0xD9), ImageType.JPEG))
+                .containsExactly(bytes(0xFF, 0xD8, 0xFF, 0xD9));
+        // 長さを持たないマーカー（RST0・RST7・TEM）は、そのまま残す
+        byte[] withRst = bytes(0xFF, 0xD8, 0xFF, 0xD0, 0xFF, 0xD7, 0xFF, 0x01, 0xFF, 0xD9);
+        assertThat(ImageMetadataStripper.strip(withRst, ImageType.JPEG)).containsExactly(withRst);
+        // SOS・EOI が無いまま終わっても、読めたところまでを返す（EXIF は消す）
+        byte[] noEnd = bytes(0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x03, 0x41, 0xFF, 0xE0, 0x00, 0x02);
+        assertThat(ImageMetadataStripper.strip(noEnd, ImageType.JPEG))
+                .containsExactly(bytes(0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x02));
+    }
+
+    @Test
+    void jpeg_brokenStructures_areRejected() {
+        // マーカー（FF）が無い
+        assertInvalid(bytes(0xFF, 0xD8, 0x00, 0x00), ImageType.JPEG);
+        // セグメントの長さが 2 より小さい（長さには、長さ自身の2バイトを含む決まり）
+        assertInvalid(bytes(0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x01), ImageType.JPEG);
+        // マーカーの途中で切れている
+        assertInvalid(bytes(0xFF, 0xD8, 0xFF), ImageType.JPEG);
+        // 長さの途中で切れている
+        assertInvalid(bytes(0xFF, 0xD8, 0xFF, 0xE0, 0x00), ImageType.JPEG);
+    }
+
+    @Test
+    void png_brokenChunkLengths_areRejected() {
+        int[] signature = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+        // 長さが負（最上位のビットが立っている）
+        assertInvalid(concat(bytes(signature), bytes(0xFF, 0xFF, 0xFF, 0xFF, 'I', 'D', 'A', 'T')), ImageType.PNG);
+        // 長さが大きすぎて、足し算があふれる（約21億）
+        assertInvalid(concat(bytes(signature), bytes(0x7F, 0xFF, 0xFF, 0xFF, 'I', 'D', 'A', 'T', 0, 0, 0, 0)),
+                ImageType.PNG);
+        assertInvalid(concat(bytes(signature), bytes(0x7F, 0xFF, 0xFF, 0xFF, 't', 'E', 'X', 't', 0, 0, 0, 0)),
+                ImageType.PNG);
+        // 長さの途中で切れている
+        assertInvalid(concat(bytes(signature), bytes(0, 0)), ImageType.PNG);
+    }
+
+    private static byte[] concat(byte[] a, byte[] b) {
+        byte[] out = new byte[a.length + b.length];
+        System.arraycopy(a, 0, out, 0, a.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
+    // 種類（4文字）＋大きさ（リトルエンディアン。実際の中身と違う値も書ける）＋中身
+    private static byte[] rawWebpChunk(String type, int declaredSize, int... payload) {
+        ByteBuffer out = ByteBuffer.allocate(8 + payload.length).order(ByteOrder.LITTLE_ENDIAN);
+        out.put(type.getBytes(StandardCharsets.ISO_8859_1)).putInt(declaredSize).put(bytes(payload));
+        return out.array();
+    }
+
+    @Test
+    void webp_emptyExtendedHeader_andOddSizedChunk_areKept() {
+        // VP8X の中身が空（フラグが無い）ときは、そのまま残す
+        byte[] emptyVp8x = webp(rawWebpChunk("VP8X", 0), rawWebpChunk("VP8 ", 2, 1, 2));
+        assertThat(ImageMetadataStripper.strip(emptyVp8x, ImageType.WEBP)).containsExactly(emptyVp8x);
+        // 大きさが奇数のチャンクは、1バイトの詰め物ごと残す。最後のチャンクで詰め物が無くても読める
+        byte[] odd = webp(rawWebpChunk("VP8 ", 3, 1, 2, 3, 0), rawWebpChunk("ALPH", 1, 9));
+        assertThat(ImageMetadataStripper.strip(odd, ImageType.WEBP)).containsExactly(odd);
+    }
+
+    @Test
+    void webp_brokenChunkSizes_areRejected() {
+        // 大きさが負
+        assertInvalid(webp(rawWebpChunk("VP8 ", -1, 1, 2)), ImageType.WEBP);
+        // 大きさが、実際のデータより大きい
+        assertInvalid(webp(rawWebpChunk("VP8 ", 100, 1, 2)), ImageType.WEBP);
+        // 大きさが大きすぎて、足し算があふれる（約21億）。残すチャンクでも、消すチャンク（EXIF）でも
+        assertInvalid(webp(rawWebpChunk("VP8 ", Integer.MAX_VALUE, 1, 2)), ImageType.WEBP);
+        assertInvalid(webp(rawWebpChunk("EXIF", Integer.MAX_VALUE, 1, 2)), ImageType.WEBP);
+        assertInvalid(webp(rawWebpChunk("VP8 ", Integer.MAX_VALUE - 7, 1, 2)), ImageType.WEBP);
+        // チャンクの途中（種類・大きさ）で切れている
+        assertInvalid(webp(bytes('V', 'P', '8')), ImageType.WEBP);
+        assertInvalid(webp(bytes('V', 'P', '8', ' ', 1, 0)), ImageType.WEBP);
+    }
 }

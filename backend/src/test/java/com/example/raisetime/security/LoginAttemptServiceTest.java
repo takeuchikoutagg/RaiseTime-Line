@@ -116,6 +116,19 @@ class LoginAttemptServiceTest {
         assertThatCode(() -> service.checkAllowed("new@example.com", "198.51.100.7")).doesNotThrowAnyException();
     }
 
+    // T-08 境界値：同じ IP からの失敗が49回なら、まだログインできる（50回目でロック）
+    @Test
+    void failuresFromSameIp_oneBelowTheLimit_areStillAllowed() {
+        for (int i = 0; i < LoginAttemptService.MAX_FAILURES_PER_IP - 1; i++) {
+            service.recordFailure("user" + i + "@example.com", IP);
+        }
+        assertThatCode(() -> service.checkAllowed("new@example.com", IP)).doesNotThrowAnyException();
+
+        service.recordFailure("last@example.com", IP);
+        assertThatThrownBy(() -> service.checkAllowed("new@example.com", IP))
+                .isInstanceOf(TooManyRequestsException.class);
+    }
+
     // 自分のアカウントでログインに成功しても、IP の回数は消えない
     @Test
     void success_doesNotResetIpCount() {
