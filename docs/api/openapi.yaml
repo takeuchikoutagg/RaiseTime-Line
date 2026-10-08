@@ -1034,7 +1034,8 @@ components:
       properties:
         email:
           type: string
-          minLength: 1
+          maxLength: 255
+          minLength: 0
         password:
           type: string
           minLength: 1

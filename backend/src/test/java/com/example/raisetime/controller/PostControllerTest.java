@@ -445,4 +445,60 @@ class PostControllerTest {
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.message").value("Gone"));
     }
+
+    // ---------- ログのテスト設計から足したケース（docs/テスト設計書.md 2.6） ----------
+
+    // 本物のリクエストの流れで、アクセスログに「パスの形」・ステータス・ログイン中のユーザーが入る
+    @Test
+    void accessLog_hasPathPattern_status_andUserId_forRealRequest() throws Exception {
+        when(postService.findById(10L, 1L)).thenReturn(SAMPLE);
+
+        try (LogCapture logs = LogCapture.of(com.example.raisetime.logging.RequestLoggingFilter.class)) {
+            String requestId = mockMvc.perform(get("/api/posts/10").queryParam("secret", "query").cookie(loggedIn))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getHeader("X-Request-Id");
+
+            var event = logs.single(LogEvents.HTTP_REQUEST);
+            assertThat(LogCapture.fields(event))
+                    .containsEntry("method", "GET")
+                    .containsEntry("path", "/api/posts/{postId}")
+                    .containsEntry("status", 200);
+            assertThat(event.getMDCPropertyMap())
+                    .containsEntry(LogContext.USER_ID, "1")
+                    .containsEntry(LogContext.REQUEST_ID, requestId);
+            assertThat(logs.allText()).doesNotContain("secret", "access_token");
+        }
+    }
+
+    // ログレベルのデシジョンテーブル：利用者の入力の誤り（400）・見つからない（404）は、アプリとしては正常な動きなので
+    // WARN・ERROR にしない（アラートの対象にしない）。アクセスログのステータスでわかる
+    @Test
+    void clientErrors_areNotLoggedAsWarnOrError() throws Exception {
+        when(postService.findById(10L, 1L)).thenThrow(new NotFoundException("投稿が見つかりません"));
+
+        try (LogCapture logs = LogCapture.of(GlobalExceptionHandler.class)) {
+            mockMvc.perform(get("/api/posts/10").cookie(loggedIn)).andExpect(status().isNotFound());
+            mockMvc.perform(get("/api/posts/abc").cookie(loggedIn)).andExpect(status().isBadRequest());
+            mockMvc.perform(get("/api/no-such-api").cookie(loggedIn)).andExpect(status().isNotFound());
+
+            assertThat(logs.events()).isEmpty();
+        }
+    }
+
+    // 画像を保存できなかったときは、人が対応する必要があるので ERROR。原因の例外も残す（監視の M-7）
+    @Test
+    void storageFailure_isLoggedAsError_withCause() throws Exception {
+        when(postService.create(any(), anyString(), any()))
+                .thenThrow(new StorageException("upload failed", new RuntimeException("S3 down")));
+
+        try (LogCapture logs = LogCapture.of(GlobalExceptionHandler.class)) {
+            mockMvc.perform(multipart("/api/posts").param("body", "x").with(csrf()).cookie(loggedIn))
+                    .andExpect(status().isInternalServerError());
+
+            var event = logs.single(LogEvents.STORAGE_FAILED);
+            assertThat(event.getLevel().toString()).isEqualTo("ERROR");
+            assertThat(event.getThrowableProxy().getCause().getMessage()).isEqualTo("S3 down");
+            assertThat(event.getMDCPropertyMap()).containsEntry(LogContext.USER_ID, "1");
+        }
+    }
 }
