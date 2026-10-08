@@ -1,5 +1,7 @@
 package com.example.raisetime.service;
 
+import com.example.raisetime.logging.LogEvents;
+import com.example.raisetime.support.LogCapture;
 import com.example.raisetime.dto.PostResponse;
 import com.example.raisetime.dto.TimelineResponse;
 import com.example.raisetime.entity.Post;
@@ -325,9 +327,15 @@ class PostServiceTest {
         when(postImageMapper.findByPostIds(List.of(5L))).thenReturn(List.of(image(5, "posts/5/a.png", 1)));
         doThrow(new RuntimeException("S3 down")).when(imageStorage).delete("posts/5/a.png");
 
-        postService.delete(5L, 1L);
-        commit();
+        try (LogCapture logs = LogCapture.of(PostService.class)) {
+            postService.delete(5L, 1L);
+            commit();
 
+            // 消し残しは、あとで手で消せるよう、どの画像かをログに残す
+            var event = logs.single(LogEvents.STORAGE_DELETE_FAILED);
+            assertThat(event.getLevel().toString()).isEqualTo("WARN");
+            assertThat(LogCapture.fields(event)).containsEntry("storage_key", "posts/5/a.png");
+        }
         verify(imageStorage).delete("posts/5/a.png");
     }
 

@@ -605,4 +605,48 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized());
         verify(refreshTokenService, never()).rotate(any());
     }
+
+    // ---------- ログのテスト設計から足したケース（docs/テスト設計書.md 2.6） ----------
+
+    // 不具合 B-4：メールアドレスに改行を入れて、偽のログの行を作れないこと
+    @Test
+    void login_emailWithLineBreak_isLoggedFullyMasked() throws Exception {
+        try (LogCapture logs = LogCapture.of(AuthController.class)) {
+            mockMvc.perform(post("/api/auth/login").with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(new LoginRequest("a@evil.example\n2026-10-08 INFO 偽のログ", "x"))))
+                    .andExpect(status().isUnauthorized());
+
+            assertThat(LogCapture.fields(logs.single(LogEvents.LOGIN_FAILED))).containsEntry("email", "***");
+            assertThat(logs.allText()).doesNotContain("偽のログ", "evil.example");
+        }
+    }
+
+    // 境界値：登録できる長さ（メールアドレス255文字・パスワード64文字）を超える値は、照合する前に 400。
+    // とても長い値で、ログや「失敗回数の記録」を埋められないようにする
+    @Test
+    void login_tooLongEmailOrPassword_returns400_withoutCheckingOrCounting() throws Exception {
+        String email255 = "a".repeat(243) + "@example.com";
+        assertThat(email255).hasSize(255);
+
+        mockMvc.perform(post("/api/auth/login").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequest("a" + email255, PASSWORD))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("email"));
+        mockMvc.perform(post("/api/auth/login").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequest("taro@example.com", "a".repeat(65)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("password"));
+        verify(loginAttemptService, never()).checkAllowed(anyString(), anyString());
+        verify(loginAttemptService, never()).recordFailure(anyString(), anyString());
+
+        // ちょうど上限の長さは、いつもどおり照合する（登録されていないので 401）
+        mockMvc.perform(post("/api/auth/login").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequest(email255, "a".repeat(64)))))
+                .andExpect(status().isUnauthorized());
+        verify(loginAttemptService).recordFailure(anyString(), anyString());
+    }
 }
