@@ -5,3 +5,5 @@
 .env
 .env.*
 .claude/settings.local.json
+# 性能テストの結果（perf/run.sh が出す JSON・HTML）。要点は docs/パフォーマンステスト.md に記録する
+perf/results/

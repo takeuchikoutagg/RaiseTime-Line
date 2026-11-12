@@ -52,6 +52,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | 認証 | Spring Security（OAuth2 Resource Server）で JWT。アクセストークン15分・リフレッシュトークン7日を HttpOnly Cookie で渡す。CSRF は Cookie ＋ ヘッダー方式 | Spring Security 7.1.0 |
 | 画像の保存先 | AWS S3（AWS SDK for Java v2）。開発中は S3 互換の Adobe S3Mock（Docker） | AWS SDK 2.55.9 |
 | API 仕様書 | springdoc-openapi（OpenAPI 3.1・Swagger UI）。開発のときだけ公開 | springdoc-openapi 3.1.1 |
+| 性能テスト | k6（Docker Compose の profile `perf` で実行。インストール不要） | k6 1.0.0 |
 | インフラ（案） | AWS（CloudFront / ALB / EC2 / RDS / S3） | - |
 | ドキュメント | Markdown（図は Mermaid） | - |
 
@@ -75,10 +76,11 @@ backend/    … Spring Boot（Gradle）製バックエンド
 frontend/   … React + Vite 製フロントエンド
 docs/       … 要件定義書と設計ドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図・インフラ構成図など）
 prototype/  … HTML / CSS / JavaScript だけで作ったプロトタイプ（データは localStorage。本番の React + Spring Boot 版を作る前の画面・動きの確認用）
+perf/       … 性能テスト（k6 のシナリオ・大量データの SQL・EXPLAIN の SQL。入口は perf/run.sh）
 .claude/    … Claude Code 向けの設定・プロジェクトスキル
 .githooks/  … Git フック（main への直接プッシュを防ぐ pre-push）
 CLAUDE.md   … Claude Code 向けの作業ガイドライン・開発ルール
-docker-compose.yml … 開発用の PostgreSQL
+docker-compose.yml … 開発用の PostgreSQL・S3Mock と、性能テストの k6（profile perf）
 ```
 
 ## セットアップ・起動方法
@@ -96,6 +98,7 @@ docker-compose.yml … 開発用の PostgreSQL
 - フロントのテスト: `cd frontend && npm test`。静的解析: `npm run lint`。本番用のビルド: `npm run build`
 - テストの網羅率（どの行・分岐を通ったか）: バックエンドは `cd backend && ./gradlew test coverageSummary`（詳細は `build/reports/jacoco/test/html/index.html`）、フロントは `cd frontend && npm run coverage`（詳細は `coverage/index.html`）
 - E2E テスト（本物のブラウザで画面を通して操作する）: `cd frontend && npm run e2e`（初回だけ `npx playwright install chromium webkit`。Edge はインストール済みのものを使う）。結果は `npm run e2e:report`。詳しくは [docs/テスト仕様書.md](./docs/テスト仕様書.md) の5章
+- 性能テスト（必要なときだけ手で実行）: `perf/run.sh backend`（別のターミナルで、性能テスト用の DB でバックエンドを起動）→ `perf/run.sh seed`（大量データ）→ `perf/run.sh explain`・`smoke`・`load`・`stress`。詳しくは [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md)
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
 - テスト: `cd backend && ./gradlew test`（PostgreSQL が起動している必要がある）。静的解析: `./gradlew checkstyleMain`
@@ -149,6 +152,7 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 | [docs/テスト・ログの運用ルール.md](./docs/テスト・ログの運用ルール.md) | 機能を足す・直すときに、テストの設計とログの設計を続けていくための決まり（変更の種類ごとにやること・完了の基準・バグを見つけたときの流れ・定期的な見直し） |
 | [docs/テスト設計書.md](./docs/テスト設計書.md) | テスト技法（同値分割・境界値・デシジョンテーブル・状態遷移・ペアワイズ・エラー推測／命令網羅・分岐網羅）から導いたテストケースと、今のテストとの対応・追加するテスト・見つかった不具合 |
 | [docs/テスト仕様書.md](./docs/テスト仕様書.md) | 画面を操作して確かめるシナリオテストの手順・期待する結果・実施結果（Chrome / Safari / Edge） |
+| [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md) | 性能テストの想定・合格ライン・大量データ・k6 のシナリオ・SQL の確認・手順・結果の記録 |
 | [docs/ログ・監視設計.md](./docs/ログ・監視設計.md) | ログの運用・監視・運用方針の考え方と、このアプリでの設計（SLO・出すログ・アラート・ランブック。Datadog を前提に、CloudWatch との比較も） |
 | [docs/インフラ構成図.md](./docs/インフラ構成図.md) | AWS で構築する場合の構成案・ネットワーク・権限・費用を抑える工夫 |
 
