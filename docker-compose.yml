@@ -28,6 +28,23 @@ services:
     volumes:
       - s3mock_data:/s3mockroot
 
+  # 性能テストの k6（docs/パフォーマンステスト.md）。profile を付けているので、docker compose up -d では起動しない。
+  # perf/run.sh smoke|load|stress から、必要なときだけ動かす（k6 のインストールは不要）
+  k6:
+    image: grafana/k6:1.0.0
+    profiles: ["perf"]
+    environment:
+      # Docker の中から、パソコンで動いているバックエンド（8081）を呼ぶ。Vite（5174）は通さない（本番も通らないため）
+      BASE_URL: ${BASE_URL:-http://host.docker.internal:8081}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # 実行中のグラフ（ウェブダッシュボード）：http://localhost:5665
+      - "5665:5665"
+    volumes:
+      - ./perf/k6:/scripts:ro
+      - ./perf/results:/results
+
 volumes:
   postgres_data:
   s3mock_data:

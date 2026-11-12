@@ -33,6 +33,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 - 隣の Taskmanagement プロジェクトが 8080 / 5173 / 5433 を使っているため、このプロジェクトは 8081 / 5174 / 5434 を使う。**Taskmanagement のポートのプロセスは止めない。**
 - 具体的な起動手順は `.claude/skills/start-dev-servers/SKILL.md` にスキルとして定義している。サーバー起動・動作確認が必要な場合はこのスキルに従う。
 - バックエンドのテスト（`./gradlew test`）は PostgreSQL が起動している必要がある。
+- 性能テスト（k6）は毎回は動かさず、必要なときに `perf/run.sh` で実行する。バックエンドは `perf/run.sh backend` で、性能テスト用の DB `raisetime_perf` に向けて起動する（中で `backend/start.sh` を呼ぶ。ポートは 8081 のまま）。**開発用の DB `raisetime` に大量データを入れない。** 終わったら `backend/start.sh` で起動し直す。手順は [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md)
 
 ## 開発ルール
 
