@@ -44,7 +44,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | 分類 | 技術 | バージョン |
 |---|---|---|
 | フロントエンド | React + Vite（JavaScript）、React Router、CSS Modules | React 19.2 / Vite 8.3 / React Router 8.4 |
-| フロントのテスト・静的解析 | Vitest ＋ Testing Library、oxlint。E2E テストは Playwright（Chromium・WebKit・Microsoft Edge） | Vitest 5.0 / Playwright 1.63 |
+| フロントのテスト・静的解析 | Vitest ＋ Testing Library、oxlint。E2E テストは Playwright（Chromium・WebKit・Microsoft Edge）、アクセシビリティの自動チェックは axe-core | Vitest 5.0 / Playwright 1.63 / @axe-core/playwright 4.14 |
 | バックエンド | Spring Boot（Java） | Spring Boot 4.1.0 / Java 25（Gradle 9.5.1） |
 | DB アクセス | MyBatis（SQL は Mapper XML） | mybatis-spring-boot-starter 4.1.0 |
 | マイグレーション | Flyway | Spring Boot 管理のバージョン |
@@ -98,7 +98,7 @@ docker-compose.yml … 開発用の PostgreSQL・S3Mock と、性能テストの
 - フロントのテスト: `cd frontend && npm test`。静的解析: `npm run lint`。本番用のビルド: `npm run build`
 - テストの網羅率（どの行・分岐を通ったか）: バックエンドは `cd backend && ./gradlew test coverageSummary`（詳細は `build/reports/jacoco/test/html/index.html`）、フロントは `cd frontend && npm run coverage`（詳細は `coverage/index.html`）
 - E2E テスト（本物のブラウザで画面を通して操作する）: `cd frontend && npm run e2e`（初回だけ `npx playwright install chromium webkit`。Edge はインストール済みのものを使う）。結果は `npm run e2e:report`。詳しくは [docs/テスト仕様書.md](./docs/テスト仕様書.md) の5章
-- 性能テスト（必要なときだけ手で実行）: `perf/run.sh backend`（別のターミナルで、性能テスト用の DB でバックエンドを起動）→ `perf/run.sh seed`（大量データ）→ `perf/run.sh explain`・`smoke`・`load`・`stress`。詳しくは [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md)
+- 性能テスト（必要なときだけ手で実行）: `perf/run.sh backend`（別のターミナルで、性能テスト用の DB でバックエンドを起動）→ `perf/run.sh seed`（大量データ）→ `perf/run.sh explain`・`smoke`・`load`・`stress`（API）・`browser`（ブラウザでの表示・操作の速さ。本番用のビルドをポート 4174 で配って測る）。詳しくは [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md)
 
 - テーブルは起動時に Flyway が作る（`backend/src/main/resources/db/migration/`）
 - テスト: `cd backend && ./gradlew test`（PostgreSQL が起動している必要がある）。静的解析: `./gradlew checkstyleMain`
