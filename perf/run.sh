@@ -6,6 +6,7 @@
 #   perf/run.sh smoke     1人で1分（スクリプトの確認と基準の値）
 #   perf/run.sh load      同時50人で約8分（合格ラインの判定）。人数は VUS=30 perf/run.sh load のように変えられる
 #   perf/run.sh stress    50 → 100 → 200人と増やして約17分（どこから遅くなるかを見る）
+#   perf/run.sh browser   ブラウザで画面の表示・操作の速さを測る（本番用のビルド・Chromium・PC とスマホ相当。約10分）
 #   perf/run.sh explain   主要な SQL の実行計画と実行時間
 #   perf/run.sh reset     raisetime_perf を消す
 #
@@ -19,7 +20,7 @@ PERF_DB=raisetime_perf
 DB_USER=raisetime
 
 usage() {
-  sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
@@ -83,6 +84,18 @@ case "${1:-}" in
     ;;
   smoke | load | stress)
     run_k6 "$1"
+    ;;
+  browser)
+    # 本番用のビルドを frontend/preview.sh（ポート 4174）で配り、Playwright で測る（frontend/playwright.perf.config.js）。
+    # 測るたびにビルドし直すため、前に動かしたプレビューが 4174 に残っていれば止める（Playwright は使用中のポートでは始めない）
+    PREVIEW_PID=$(lsof -ti tcp:4174 -sTCP:LISTEN || true)
+    if [ -n "${PREVIEW_PID}" ]; then
+      echo "ポート 4174 のプレビュー（PID: ${PREVIEW_PID}）を止めます"
+      kill ${PREVIEW_PID}
+      sleep 1
+    fi
+    cd frontend
+    npm run e2e:perf
     ;;
   explain)
     require_postgres
