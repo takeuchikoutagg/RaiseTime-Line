@@ -56,6 +56,10 @@ export function follow(api, username) {
   return call(api, 'PUT', `/api/users/${username}/follow`)
 }
 
+export function deletePost(api, postId) {
+  return call(api, 'DELETE', `/api/posts/${postId}`)
+}
+
 // 単色（上から下へ少し暗くなる）の PNG 画像。setFiles にそのまま渡せる形で返す
 export function png(name, [r, g, b] = [90, 160, 240], width = 120, height = 80) {
   const rows = []

@@ -13,6 +13,15 @@ export default defineConfig({
       '/api': 'http://localhost:8081',
     },
   },
+  // 本番用のビルド（dist/）を配る。ブラウザのパフォーマンステスト（e2e-perf/）で使う。起動は preview.sh から。
+  // 開発サーバー（5174）・Taskmanagement と重ならないポートにし、使用中なら別のポートに逃がさずエラーにする
+  preview: {
+    port: 4174,
+    strictPort: true,
+    proxy: {
+      '/api': 'http://localhost:8081',
+    },
+  },
   test: {
     environment: 'jsdom',
     // 単体・結合テストは src/ の中だけ（e2e/ は Playwright の E2E テスト）
