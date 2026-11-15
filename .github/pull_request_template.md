@@ -22,8 +22,9 @@ Closes #
 - [ ] ログのテスト（出るべきときに出る・項目・レベル・秘密が出ない）がある
 
 ### 確かめたこと
+- [ ] CI（backend・frontend・e2e の chromium／webkit／msedge）がすべて通った
 - [ ] `cd backend && ./gradlew checkstyleMain test`
-- [ ] `cd frontend && npm test && npm run lint && npm run build`
+- [ ] `cd frontend && npm test && npm run lint && npm run build`（oxlint の警告も0件）
 - [ ] 網羅率を下げていない（`./gradlew test coverageSummary`・`npm run coverage`）。業務のルールを持つクラスは分岐網羅 100%
 - [ ] 画面・API の動きを変えた → `cd frontend && npm run e2e`
 - [ ] API を変えた → `./gradlew generateOpenApi`

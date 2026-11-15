@@ -43,8 +43,10 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 - **mainブランチに直接変更を加えない。** 作業は必ずissueごとに作業用ブランチを作成して行う。
 - ブランチはissueに対応する形で作成する（例: `issue-12`、`feature/12-post-edit` など、issue番号がわかる命名にする）。
 - 作業が完了したら、mainブランチへはPull Requestを経由してマージする。
-- mainブランチへの直接プッシュは、ローカルのGitフック（`.githooks/pre-push`、`git config core.hooksPath .githooks` で有効化）で止めている。GitHub Freeのプライベートリポジトリのためブランチ保護は使えない。フックを `--no-verify` で回避しない。
+- main は GitHub のブランチ保護で守っている：Pull Request からしか変更できない（直接 push・強制 push・削除は不可。管理者にも適用）。CI の5つのジョブ（backend・frontend・e2e の chromium／webkit／msedge）がすべて成功し、main の最新を取り込んでいないとマージできない（承認者の人数は0人）。
+- ローカルのGitフック（`.githooks/pre-push`、`git config core.hooksPath .githooks` で有効化）でも、main への直接プッシュを push する前に止める。フックを `--no-verify` で回避しない。
 - Pull Requestをマージすると作業ブランチは自動で削除される。
+- Pull Request（main 向け）と main へのマージのたびに、CI（`.github/workflows/ci.yml`）が静的解析（Checkstyle・oxlint の警告も含む）・単体／結合テスト・E2E（Chromium・WebKit・Edge）を実行する。**CI がすべて通ってからマージする。** CI があっても、Pull Request を出す前に手元で確かめる決まり（テスト・ログの運用ルール 3章）は変わらない。パフォーマンステストは CI では動かさない
 
 ### テスト・ログの運用
 

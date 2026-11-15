@@ -12,7 +12,12 @@ export default defineConfig({
   workers: 3,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  reporter: [['list'], ['html', { open: 'never' }]],
+  // CI（GitHub Actions）では、test.only の消し忘れで一部のテストだけが動くのを防ぎ、失敗した箇所を GitHub の画面に出す。
+  // リトライはしない（たまに落ちるテストを、通ったことにして隠さないため）
+  forbidOnly: !!process.env.CI,
+  reporter: process.env.CI
+    ? [['github'], ['list'], ['html', { open: 'never' }]]
+    : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'http://localhost:5174',
     locale: 'ja-JP',
