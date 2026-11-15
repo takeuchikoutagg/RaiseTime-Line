@@ -1,5 +1,7 @@
 # RaiseTime Line
 
+[![CI](https://github.com/takeuchikoutagg/RaiseTime-Line/actions/workflows/ci.yml/badge.svg)](https://github.com/takeuchikoutagg/RaiseTime-Line/actions/workflows/ci.yml)
+
 受講生や個人が、学習の記録や日々の気づきを気軽に投稿できる、タイムライン型のテキストSNS。X（旧Twitter）を参考に、学習目的で開発する。
 
 X に近い使い心地だが、**インプレッション数の表示やリツイート機能はあえて作らない**。「どれだけ見られたか」「どれだけ広まったか」を気にせず、フォローしている人の投稿だけを落ち着いて読めることを目指す。いいね数とコメント数は表示するので、受け取った反応は分かる。
@@ -157,6 +159,22 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 | [docs/インフラ構成図.md](./docs/インフラ構成図.md) | AWS で構築する場合の構成案・ネットワーク・権限・費用を抑える工夫 |
 
 図はすべて [Mermaid](https://mermaid.js.org/) で書いている。GitHub ではそのまま図として表示される。VSCode では拡張機能「Markdown Preview Mermaid Support」を入れるとプレビューで表示できる。
+
+## CI（GitHub Actions）
+
+Pull Request（main 向け）と main へのマージのたびに、[.github/workflows/ci.yml](./.github/workflows/ci.yml) が次の5つのジョブを同時に動かす。どれか1つでも失敗したら、マージする前に直す。
+
+| ジョブ | 中身 | 失敗にするもの |
+|---|---|---|
+| backend | `./gradlew checkstyleMain test coverageSummary`（PostgreSQL・S3Mock は手元と同じ `docker-compose.yml` で起動） | Checkstyle の違反、テストの失敗（API 仕様書の作り直し忘れも含む） |
+| frontend | `npm run lint -- --deny-warnings`、`npm run coverage`、`npm run build`、`npm audit`（表示だけ） | oxlint のエラーと**警告**、テストの失敗、ビルドの失敗 |
+| e2e（chromium・webkit・msedge） | `npx playwright test --project=<ブラウザ>`。バックエンドとフロントは `playwright.config.js` が start.sh で起動する | E2E の失敗 |
+
+- 結果は Pull Request の画面の「Checks」、または [Actions](https://github.com/takeuchikoutagg/RaiseTime-Line/actions/workflows/ci.yml) で見る。失敗した箇所は、ファイルの行に注釈として出る
+- 実行結果の画面の「Artifacts」から、網羅率のレポート（backend-coverage・frontend-coverage）と、失敗したときの E2E のレポート（e2e-report-ブラウザ名。操作の記録 trace・スクリーンショットつき）を取り出せる。E2E の trace は `npx playwright show-trace trace.zip` で開く
+- 網羅率と `npm audit` では失敗にしない（網羅率の決まりは、レポートを見て人が確かめる）
+- パフォーマンステスト（`perf/`・`npm run e2e:perf`）は CI では動かさない
+- かかる時間の目安：全体で約2分半（E2E の3つが同時に動くため）
 
 ## 開発ルール
 

@@ -26,14 +26,14 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version: '25'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
       # 手元と同じ docker-compose.yml で、PostgreSQL（5434）と S3Mock（9090）だけを起動する（k6 は profile perf なので起動しない）
       - name: PostgreSQL と S3Mock を起動する
@@ -49,7 +49,7 @@ jobs:
 
       - name: 網羅率のレポートを残す
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: backend-coverage
           path: backend/build/reports/jacoco/test/html/
@@ -57,7 +57,7 @@ jobs:
 
       - name: テストのレポートを残す（失敗したとき）
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: backend-test-report
           path: |
@@ -74,9 +74,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -101,7 +101,7 @@ jobs:
 
       - name: 網羅率のレポートを残す
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: frontend-coverage
           path: frontend/coverage/
@@ -119,16 +119,16 @@ jobs:
       matrix:
         project: [chromium, webkit, msedge]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version: '25'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -160,7 +160,7 @@ jobs:
       # 失敗したときに原因を調べられるよう、レポート・操作の記録（trace）・スクリーンショットを残す
       - name: E2E のレポートを残す（失敗したとき）
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: e2e-report-${{ matrix.project }}
           path: |

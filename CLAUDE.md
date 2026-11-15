@@ -45,6 +45,7 @@ X（旧Twitter）を参考にした、学習用のタイムライン型テキス
 - 作業が完了したら、mainブランチへはPull Requestを経由してマージする。
 - mainブランチへの直接プッシュは、ローカルのGitフック（`.githooks/pre-push`、`git config core.hooksPath .githooks` で有効化）で止めている。GitHub Freeのプライベートリポジトリのためブランチ保護は使えない。フックを `--no-verify` で回避しない。
 - Pull Requestをマージすると作業ブランチは自動で削除される。
+- Pull Request（main 向け）と main へのマージのたびに、CI（`.github/workflows/ci.yml`）が静的解析（Checkstyle・oxlint の警告も含む）・単体／結合テスト・E2E（Chromium・WebKit・Edge）を実行する。**CI がすべて通ってからマージする。** CI があっても、Pull Request を出す前に手元で確かめる決まり（テスト・ログの運用ルール 3章）は変わらない。パフォーマンステストは CI では動かさない
 
 ### テスト・ログの運用
 
