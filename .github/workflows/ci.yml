@@ -1,0 +1,169 @@
+# CI（README の「CI」の節）。Pull Request と main へのマージのたびに、静的解析・単体／結合テスト・E2E を自動で実行する。
+# パフォーマンステスト（perf/・frontend/e2e-perf/）は、ここでは動かさない（必要なときに手で実行する。docs/パフォーマンステスト.md）
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 同じブランチ・同じ Pull Request で新しく push したら、前の実行は止める
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # バックエンド：Checkstyle と、単体・結合テスト（Mapper は本物の PostgreSQL、画像は S3Mock を使う）
+  backend:
+    name: backend（Checkstyle・テスト）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-java@v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v6.4.1
+
+      # 手元と同じ docker-compose.yml で、PostgreSQL（5434）と S3Mock（9090）だけを起動する（k6 は profile perf なので起動しない）
+      - name: PostgreSQL と S3Mock を起動する
+        working-directory: .
+        run: |
+          docker compose up -d postgres s3mock
+          for i in $(seq 1 60); do docker compose exec -T postgres pg_isready -U raisetime && break; sleep 2; done
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:9090 && break; sleep 2; done
+
+      # テストのあとに、網羅率の一覧（分岐網羅 100% でないクラス）をログに出す。網羅率では失敗にしない
+      - name: Checkstyle・テスト・網羅率の一覧
+        run: ./gradlew checkstyleMain test coverageSummary
+
+      - name: 網羅率のレポートを残す
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: backend-coverage
+          path: backend/build/reports/jacoco/test/html/
+          if-no-files-found: ignore
+
+      - name: テストのレポートを残す（失敗したとき）
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: backend-test-report
+          path: |
+            backend/build/reports/tests/test/
+            backend/build/reports/checkstyle/
+          if-no-files-found: ignore
+
+  # フロントエンド：oxlint（警告も失敗にする）、単体・結合テスト（網羅率つき）、本番用のビルド
+  frontend:
+    name: frontend（oxlint・テスト・ビルド）
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: oxlint（警告も失敗にする）
+        run: npm run lint -- --deny-warnings
+
+      # npm test と同じテストを、網羅率を取りながら動かす
+      - name: テスト（網羅率つき）
+        run: npm run coverage
+
+      - name: 本番用のビルド
+        run: npm run build
+
+      # ライブラリの既知の脆弱性。結果を表示するだけで、失敗にはしない（更新は別の issue で行う）
+      - name: npm audit（表示だけ）
+        continue-on-error: true
+        run: npm audit
+
+      - name: 網羅率のレポートを残す
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: ignore
+
+  # E2E：Chromium・WebKit（Safari と同じ描画の仕組み）・Microsoft Edge を、別々のジョブで同時に動かす。
+  # バックエンドとフロントエンドは、playwright.config.js の webServer が start.sh で起動する（手元と同じ）
+  e2e:
+    name: e2e（${{ matrix.project }}）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # 1つのブラウザで失敗しても、ほかのブラウザの結果も見られるように、止めずに最後まで動かす
+      fail-fast: false
+      matrix:
+        project: [chromium, webkit, msedge]
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-java@v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v6.4.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: PostgreSQL と S3Mock を起動する
+        run: |
+          docker compose up -d postgres s3mock
+          for i in $(seq 1 60); do docker compose exec -T postgres pg_isready -U raisetime && break; sleep 2; done
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:9090 && break; sleep 2; done
+
+      # 先にコンパイルしておき、E2E の始まりでバックエンドが起動するまでの時間（webServer の待ち時間）に収める
+      - name: バックエンドをコンパイルする
+        working-directory: backend
+        run: ./gradlew classes
+
+      - name: フロントエンドの依存を入れる
+        working-directory: frontend
+        run: npm ci
+
+      - name: テスト用のブラウザを入れる
+        working-directory: frontend
+        run: npx playwright install --with-deps ${{ matrix.project }}
+
+      - name: E2E
+        working-directory: frontend
+        run: npx playwright test --project=${{ matrix.project }}
+
+      # 失敗したときに原因を調べられるよう、レポート・操作の記録（trace）・スクリーンショットを残す
+      - name: E2E のレポートを残す（失敗したとき）
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: e2e-report-${{ matrix.project }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
