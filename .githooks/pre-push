@@ -1,5 +1,5 @@
 #!/bin/sh
-# main ブランチへの直接プッシュを禁止する（GitHub Free のプライベートリポジトリではブランチ保護が使えないため）
+# main ブランチへの直接プッシュを禁止する。GitHub のブランチ保護でも止めているが、push する前に手元で気づけるよう、ここでも止める
 # 有効化: git config core.hooksPath .githooks
 protected="refs/heads/main"
 

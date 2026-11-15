@@ -180,7 +180,8 @@ Pull Request（main 向け）と main へのマージのたびに、[.github/wor
 
 ブランチ運用（issue ごとの作業ブランチ・Pull Request 経由でのマージ）などの開発ルールは [CLAUDE.md](./CLAUDE.md) を参照。
 
-- `main` ブランチへの直接プッシュは禁止。GitHub Free のプライベートリポジトリではブランチ保護が使えないため、ローカルの Git フック（[.githooks/pre-push](./.githooks/pre-push)）で止めている
+- `main` ブランチは GitHub のブランチ保護で守っている。Pull Request からしか変更できず（直接 push・強制 push・削除は不可。管理者にも適用）、CI の5つのジョブがすべて成功していないとマージできない
+- push する前に手元でも気づけるよう、ローカルの Git フック（[.githooks/pre-push](./.githooks/pre-push)）でも main への直接プッシュを止めている
 - Pull Request をマージしたら、作業ブランチは自動で削除される（GitHub のリポジトリ設定で有効化済み）
 
 clone したら、最初に次のコマンドでフックを有効にする。
