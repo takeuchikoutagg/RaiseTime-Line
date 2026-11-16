@@ -23,3 +23,4 @@ export function formatRelativeTime(iso, now = Date.now()) {
   if (seconds < 7 * DAY) return `${Math.floor(seconds / DAY)}日前`
   return formatDateTime(iso).slice(0, 10)
 }
+const unused = 1
