@@ -40,8 +40,8 @@ jobs:
         working-directory: .
         run: |
           docker compose up -d postgres s3mock
-          for i in $(seq 1 60); do docker compose exec -T postgres pg_isready -U raisetime && break; sleep 2; done
-          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:9090 && break; sleep 2; done
+          for _ in $(seq 1 60); do docker compose exec -T postgres pg_isready -U raisetime && break; sleep 2; done
+          for _ in $(seq 1 60); do curl -sf -o /dev/null http://localhost:9090 && break; sleep 2; done
 
       # テストのあとに、網羅率の一覧（分岐網羅 100% でないクラス）をログに出す。網羅率では失敗にしない
       - name: Checkstyle・テスト・網羅率の一覧
@@ -137,8 +137,8 @@ jobs:
       - name: PostgreSQL と S3Mock を起動する
         run: |
           docker compose up -d postgres s3mock
-          for i in $(seq 1 60); do docker compose exec -T postgres pg_isready -U raisetime && break; sleep 2; done
-          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:9090 && break; sleep 2; done
+          for _ in $(seq 1 60); do docker compose exec -T postgres pg_isready -U raisetime && break; sleep 2; done
+          for _ in $(seq 1 60); do curl -sf -o /dev/null http://localhost:9090 && break; sleep 2; done
 
       # 先にコンパイルしておき、E2E の始まりでバックエンドが起動するまでの時間（webServer の待ち時間）に収める
       - name: バックエンドをコンパイルする

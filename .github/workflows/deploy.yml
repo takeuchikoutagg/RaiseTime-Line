@@ -1,0 +1,161 @@
+# デプロイ（docs/デプロイ.md）。main で CI がすべて成功したら、AWS（docs/インフラ構成図.md の節約案）へ自動でデプロイする。
+# - リポジトリ変数 DEPLOY_ENABLED が 'true' のときだけ動く。インフラが無い間・節約のために消している間は、スキップになる（失敗にはしない）
+# - Actions の画面の「Run workflow」からも、main の今の状態をデプロイできる（やり直したいとき用）
+# - AWS へは OIDC で IAM ロールを借りる。アクセスキーは GitHub に置かない
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # OIDC で AWS の IAM ロールを借りるため
+  id-token: write
+
+# デプロイは1つずつ順に行う。途中で止めると、バックエンドとフロントエンドの版がずれるので、前の実行は止めない
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy（バックエンド → フロントエンド）
+    # - DEPLOY_ENABLED が 'true' のとき
+    # - CI から来たときは、main への push（マージ）で CI が成功したときだけ（Pull Request の CI では動かさない）
+    # - ボタンで動かしたときは、main を選んだときだけ
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push') ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+      # CI が確かめたコミット（ボタンで動かしたときは、選んだブランチの最新）
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - uses: actions/setup-java@v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v6.4.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ---------- バックエンド（先に出す。新しい画面が、まだ古い API を呼ぶ時間を作らないため） ----------
+
+      # テストは CI で済んでいるので、ここでは jar を作るだけ
+      - name: バックエンドの jar を作る
+        working-directory: backend
+        run: ./gradlew bootJar
+
+      - name: jar とスクリプトを、デプロイ用の S3 バケットに置く
+        env:
+          ARTIFACT_PREFIX: s3://${{ vars.DEPLOY_ARTIFACT_BUCKET }}/backend/${{ env.RELEASE_SHA }}
+        run: |
+          # bootJar の jar（-plain.jar は、依存を含まない別の jar なので使わない）
+          for file in backend/build/libs/*.jar; do
+            case "${file}" in *-plain.jar) ;; *) jar="${file}" ;; esac
+          done
+          aws s3 cp "${jar}" "${ARTIFACT_PREFIX}/app.jar"
+          aws s3 cp deploy/backend-release.sh "${ARTIFACT_PREFIX}/backend-release.sh"
+
+      # SSM（Systems Manager）で、タグ Role=raisetime-backend の EC2 に命令を送る（SSH は使わない）。
+      # EC2 の上の backend-release.sh が、jar を差し替えて再起動し、起動を確かめる。失敗したら前の版に戻して、失敗を返す
+      - name: EC2 のバックエンドを新しい版にする
+        env:
+          ARTIFACT_PREFIX: s3://${{ vars.DEPLOY_ARTIFACT_BUCKET }}/backend/${{ env.RELEASE_SHA }}
+        run: |
+          cat > /tmp/ssm-params.json <<EOF
+          {"commands": [
+            "aws s3 cp ${ARTIFACT_PREFIX}/backend-release.sh /tmp/backend-release.sh",
+            "bash /tmp/backend-release.sh ${ARTIFACT_PREFIX}/app.jar ${RELEASE_SHA}"
+          ]}
+          EOF
+          command_id=$(aws ssm send-command \
+            --document-name AWS-RunShellScript \
+            --targets Key=tag:Role,Values=raisetime-backend \
+            --parameters file:///tmp/ssm-params.json \
+            --timeout-seconds 600 \
+            --comment "deploy ${RELEASE_SHA}" \
+            --query Command.CommandId --output text)
+          echo "SSM のコマンド：${command_id}"
+
+          # すべての EC2 で終わるのを待つ（最大10分）
+          for _ in $(seq 1 120); do
+            sleep 5
+            statuses=$(aws ssm list-command-invocations --command-id "${command_id}" --query 'CommandInvocations[].Status' --output text)
+            if [ -n "${statuses}" ] && ! echo "${statuses}" | grep -qE 'Pending|InProgress|Delayed'; then break; fi
+          done
+
+          # 結果（各 EC2 の出力）をログに出す
+          aws ssm list-command-invocations --command-id "${command_id}" --details \
+            --query 'CommandInvocations[].{instance:InstanceId,status:Status,output:CommandPlugins[0].Output}' --output yaml
+
+          if [ -z "${statuses}" ]; then
+            echo "::error::タグ Role=raisetime-backend の EC2 が見つかりません（インフラが無いか、SSM に登録されていません）"
+            exit 1
+          fi
+          if echo "${statuses}" | tr '\t' '\n' | grep -vqx 'Success'; then
+            echo "::error::バックエンドのデプロイに失敗しました（${statuses}）。EC2 は前の版に戻しています。上の出力を見てください"
+            exit 1
+          fi
+
+      # ---------- フロントエンド ----------
+
+      - name: フロントエンドをビルドする
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # assets/ のファイル名には中身のハッシュが入る（中身が変わると名前も変わる）ので、ブラウザに長く保存させてよい。
+      # index.html は毎回最新を取りに来させる（新しい assets/ を指すため）。
+      # 古い assets/ は消さない（デプロイの直前に開いた画面が、まだ古いファイルを読みに来ることがあるため）
+      - name: S3 に置く
+        working-directory: frontend
+        env:
+          FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+        run: |
+          aws s3 sync dist/assets "s3://${FRONTEND_BUCKET}/assets" --cache-control 'public, max-age=31536000, immutable'
+          aws s3 sync dist "s3://${FRONTEND_BUCKET}" --exclude 'assets/*' --cache-control 'no-cache'
+
+      - name: CloudFront のキャッシュを消す
+        env:
+          DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          invalidation_id=$(aws cloudfront create-invalidation --distribution-id "${DISTRIBUTION_ID}" \
+            --paths '/index.html' '/' --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "${DISTRIBUTION_ID}" --id "${invalidation_id}"
+
+      - name: 結果をまとめる
+        run: |
+          {
+            echo "## デプロイしました"
+            echo ""
+            echo "- コミット：\`${RELEASE_SHA}\`"
+            echo "- URL：${{ vars.APP_URL }}"
+          } >> "${GITHUB_STEP_SUMMARY}"

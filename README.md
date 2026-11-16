@@ -79,6 +79,7 @@ frontend/   … React + Vite 製フロントエンド
 docs/       … 要件定義書と設計ドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図・インフラ構成図など）
 prototype/  … HTML / CSS / JavaScript だけで作ったプロトタイプ（データは localStorage。本番の React + Spring Boot 版を作る前の画面・動きの確認用）
 perf/       … 性能テスト（k6 のシナリオ・大量データの SQL・EXPLAIN の SQL。入口は perf/run.sh）
+deploy/     … デプロイで EC2 の上で動かすスクリプト（GitHub Actions の deploy.yml から使う）
 .claude/    … Claude Code 向けの設定・プロジェクトスキル
 .githooks/  … Git フック（main への直接プッシュを防ぐ pre-push）
 CLAUDE.md   … Claude Code 向けの作業ガイドライン・開発ルール
@@ -157,6 +158,7 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 | [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md) | 性能テストの想定・合格ライン・大量データ・k6 のシナリオ・SQL の確認・手順・結果の記録 |
 | [docs/ログ・監視設計.md](./docs/ログ・監視設計.md) | ログの運用・監視・運用方針の考え方と、このアプリでの設計（SLO・出すログ・アラート・ランブック。Datadog を前提に、CloudWatch との比較も） |
 | [docs/インフラ構成図.md](./docs/インフラ構成図.md) | AWS で構築する場合の構成案・ネットワーク・権限・費用を抑える工夫 |
+| [docs/デプロイ.md](./docs/デプロイ.md) | GitHub Actions による AWS への自動デプロイの仕組み・インフラ構築のときに Terraform で用意するもの・GitHub に設定する変数・運用 |
 
 図はすべて [Mermaid](https://mermaid.js.org/) で書いている。GitHub ではそのまま図として表示される。VSCode では拡張機能「Markdown Preview Mermaid Support」を入れるとプレビューで表示できる。
 
@@ -175,6 +177,10 @@ Pull Request（main 向け）と main へのマージのたびに、[.github/wor
 - 網羅率と `npm audit` では失敗にしない（網羅率の決まりは、レポートを見て人が確かめる）
 - パフォーマンステスト（`perf/`・`npm run e2e:perf`）は CI では動かさない
 - かかる時間の目安：全体で約2分半（E2E の3つが同時に動くため）
+
+### デプロイ
+
+main で CI がすべて成功したら、[.github/workflows/deploy.yml](./.github/workflows/deploy.yml) が AWS へ自動でデプロイする（バックエンド → フロントエンドの順。起動しなければ前の版に戻す）。リポジトリ変数 `DEPLOY_ENABLED` が `true` のときだけ動き、今はインフラを作っていないのでスキップになる。仕組み・インフラ構築のときに用意するもの・GitHub に設定する変数は [docs/デプロイ.md](./docs/デプロイ.md)。
 
 ## 開発ルール
 
