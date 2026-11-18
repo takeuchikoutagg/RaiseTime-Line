@@ -35,7 +35,7 @@ class StorageConfigTest {
         }
     }
 
-    // 本番：URL を上書きせず、AWS S3 につなぐ。権限は環境（EC2 の IAM ロールなど）から得る。
+    // 本番：URL を上書きせず、AWS S3 につなぐ。権限は環境（ECS Fargate のタスクロールなど）から得る。
     // クライアントを作るだけなら AWS には通信しない
     @Test
     void production_connectsToAwsS3_withoutEndpointOverride() {

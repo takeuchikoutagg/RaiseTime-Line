@@ -47,13 +47,6 @@ jobs:
         with:
           ref: ${{ env.RELEASE_SHA }}
 
-      - uses: actions/setup-java@v6.2.0
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - uses: gradle/actions/setup-gradle@v6.4.1
-
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
@@ -67,62 +60,61 @@ jobs:
 
       # ---------- バックエンド（先に出す。新しい画面が、まだ古い API を呼ぶ時間を作らないため） ----------
 
-      # テストは CI で済んでいるので、ここでは jar を作るだけ
-      - name: バックエンドの jar を作る
-        working-directory: backend
-        run: ./gradlew bootJar
-
-      - name: jar とスクリプトを、デプロイ用の S3 バケットに置く
+      # イメージには、コミットをタグとして付ける（どの版が動いているかが分かり、前の版にも戻せる）。
+      # テストは CI で済んでいるので、Dockerfile の中では jar を作るだけ
+      - name: バックエンドのイメージを作って ECR に置く
         env:
-          ARTIFACT_PREFIX: s3://${{ vars.DEPLOY_ARTIFACT_BUCKET }}/backend/${{ env.RELEASE_SHA }}
+          ECR_REPOSITORY_URI: ${{ vars.ECR_REPOSITORY_URI }}
         run: |
-          # bootJar の jar（-plain.jar は、依存を含まない別の jar なので使わない）
-          for file in backend/build/libs/*.jar; do
-            case "${file}" in *-plain.jar) ;; *) jar="${file}" ;; esac
-          done
-          aws s3 cp "${jar}" "${ARTIFACT_PREFIX}/app.jar"
-          aws s3 cp deploy/backend-release.sh "${ARTIFACT_PREFIX}/backend-release.sh"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR_REPOSITORY_URI%%/*}"
+          docker build -t "${ECR_REPOSITORY_URI}:${RELEASE_SHA}" backend
+          docker push "${ECR_REPOSITORY_URI}:${RELEASE_SHA}"
 
-      # SSM（Systems Manager）で、タグ Role=raisetime-backend の EC2 に命令を送る（SSH は使わない）。
-      # EC2 の上の backend-release.sh が、jar を差し替えて再起動し、起動を確かめる。失敗したら前の版に戻して、失敗を返す
-      - name: EC2 のバックエンドを新しい版にする
+      # 今のタスク定義（Terraform が作ったもの）を元に、イメージと版（APP_VERSION）だけを変えた新しい版を登録し、サービスを切り替える。
+      # ECS が新しいタスクを起動し、ALB のヘルスチェック（/actuator/health）が通ってから古いタスクを止める。
+      # 起動しなければ、デプロイのサーキットブレーカーが前のタスク定義に戻す（このとき、ここでは失敗にする）
+      - name: ECS のバックエンドを新しい版にする
         env:
-          ARTIFACT_PREFIX: s3://${{ vars.DEPLOY_ARTIFACT_BUCKET }}/backend/${{ env.RELEASE_SHA }}
+          IMAGE: ${{ vars.ECR_REPOSITORY_URI }}:${{ env.RELEASE_SHA }}
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+          TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY }}
+          CONTAINER: ${{ vars.ECS_CONTAINER_NAME || 'backend' }}
         run: |
-          cat > /tmp/ssm-params.json <<EOF
-          {"commands": [
-            "aws s3 cp ${ARTIFACT_PREFIX}/backend-release.sh /tmp/backend-release.sh",
-            "bash /tmp/backend-release.sh ${ARTIFACT_PREFIX}/app.jar ${RELEASE_SHA}"
-          ]}
-          EOF
-          command_id=$(aws ssm send-command \
-            --document-name AWS-RunShellScript \
-            --targets Key=tag:Role,Values=raisetime-backend \
-            --parameters file:///tmp/ssm-params.json \
-            --timeout-seconds 600 \
-            --comment "deploy ${RELEASE_SHA}" \
-            --query Command.CommandId --output text)
-          echo "SSM のコマンド：${command_id}"
+          # 登録のときに渡せない項目（AWS が付けるもの）を除き、イメージと APP_VERSION を差し替える
+          aws ecs describe-task-definition --task-definition "${TASK_FAMILY}" --query taskDefinition \
+            | jq --arg c "${CONTAINER}" --arg image "${IMAGE}" --arg version "${RELEASE_SHA}" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                | .containerDefinitions |= map(
+                    if .name == $c then
+                      .image = $image
+                      | .environment = ([(.environment // [])[] | select(.name != "APP_VERSION")] + [{name: "APP_VERSION", value: $version}])
+                    else . end)' \
+            > /tmp/task-definition.json
+          task_definition_arn=$(aws ecs register-task-definition --cli-input-json file:///tmp/task-definition.json \
+            --query taskDefinition.taskDefinitionArn --output text)
+          echo "新しいタスク定義：${task_definition_arn}"
 
-          # すべての EC2 で終わるのを待つ（最大10分）
-          for _ in $(seq 1 120); do
-            sleep 5
-            statuses=$(aws ssm list-command-invocations --command-id "${command_id}" --query 'CommandInvocations[].Status' --output text)
-            if [ -n "${statuses}" ] && ! echo "${statuses}" | grep -qE 'Pending|InProgress|Delayed'; then break; fi
-          done
+          aws ecs update-service --cluster "${CLUSTER}" --service "${SERVICE}" \
+            --task-definition "${task_definition_arn}" --query service.serviceName --output text
 
-          # 結果（各 EC2 の出力）をログに出す
-          aws ssm list-command-invocations --command-id "${command_id}" --details \
-            --query 'CommandInvocations[].{instance:InstanceId,status:Status,output:CommandPlugins[0].Output}' --output yaml
-
-          if [ -z "${statuses}" ]; then
-            echo "::error::タグ Role=raisetime-backend の EC2 が見つかりません（インフラが無いか、SSM に登録されていません）"
+          # 新しいタスクが動き、古いタスクが止まるまで待つ（最大10分。15秒ごとに40回）
+          echo "切り替わるのを待ちます"
+          if ! aws ecs wait services-stable --cluster "${CLUSTER}" --services "${SERVICE}"; then
+            echo "::error::10分待っても切り替わりませんでした。ECS のサービスのイベントと、CloudWatch Logs のログを見てください"
+            aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" --query 'services[0].events[:10].message' --output yaml
             exit 1
           fi
-          if echo "${statuses}" | tr '\t' '\n' | grep -vqx 'Success'; then
-            echo "::error::バックエンドのデプロイに失敗しました（${statuses}）。EC2 は前の版に戻しています。上の出力を見てください"
+
+          # サーキットブレーカーが前の版に戻した場合も「安定」になるので、動いているのが新しい版かを確かめる
+          read -r primary_definition rollout_state < <(aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" \
+            --query "services[0].deployments[?status=='PRIMARY'] | [0].[taskDefinition, rolloutState]" --output text)
+          if [ "${primary_definition}" != "${task_definition_arn}" ] || [ "${rollout_state}" != "COMPLETED" ]; then
+            echo "::error::新しい版が起動せず、ECS が前の版に戻しました（${rollout_state}）。CloudWatch Logs のログを見てください"
+            aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" --query 'services[0].events[:10].message' --output yaml
             exit 1
           fi
+          echo "新しい版で動いています"
 
       # ---------- フロントエンド ----------
 

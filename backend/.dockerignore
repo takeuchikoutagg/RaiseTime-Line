@@ -1,0 +1,5 @@
+# docker build に渡さないもの（Dockerfile は必要なものだけをコピーするが、渡す量を減らしてビルドを速くする）
+build/
+.gradle/
+.idea/
+*.log
