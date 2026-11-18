@@ -26,7 +26,7 @@ public class StorageConfig {
                     .credentialsProvider(
                             StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy", "dummy")));
         } else {
-            // 本番の AWS S3：EC2 の IAM ロールなど、環境から権限を得る（アクセスキーはコードにも設定にも置かない）
+            // 本番の AWS S3：ECS Fargate のタスクロールなど、環境から権限を得る（アクセスキーはコードにも設定にも置かない）
             builder.credentialsProvider(DefaultCredentialsProvider.builder().build());
         }
         return builder.build();

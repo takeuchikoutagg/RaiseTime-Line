@@ -1,0 +1,153 @@
+# デプロイ（docs/デプロイ.md）。main で CI がすべて成功したら、AWS（docs/インフラ構成図.md の節約案）へ自動でデプロイする。
+# - リポジトリ変数 DEPLOY_ENABLED が 'true' のときだけ動く。インフラが無い間・節約のために消している間は、スキップになる（失敗にはしない）
+# - Actions の画面の「Run workflow」からも、main の今の状態をデプロイできる（やり直したいとき用）
+# - AWS へは OIDC で IAM ロールを借りる。アクセスキーは GitHub に置かない
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # OIDC で AWS の IAM ロールを借りるため
+  id-token: write
+
+# デプロイは1つずつ順に行う。途中で止めると、バックエンドとフロントエンドの版がずれるので、前の実行は止めない
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy（バックエンド → フロントエンド）
+    # - DEPLOY_ENABLED が 'true' のとき
+    # - CI から来たときは、main への push（マージ）で CI が成功したときだけ（Pull Request の CI では動かさない）
+    # - ボタンで動かしたときは、main を選んだときだけ
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push') ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+      # CI が確かめたコミット（ボタンで動かしたときは、選んだブランチの最新）
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ---------- バックエンド（先に出す。新しい画面が、まだ古い API を呼ぶ時間を作らないため） ----------
+
+      # イメージには、コミットをタグとして付ける（どの版が動いているかが分かり、前の版にも戻せる）。
+      # テストは CI で済んでいるので、Dockerfile の中では jar を作るだけ
+      - name: バックエンドのイメージを作って ECR に置く
+        env:
+          ECR_REPOSITORY_URI: ${{ vars.ECR_REPOSITORY_URI }}
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR_REPOSITORY_URI%%/*}"
+          docker build -t "${ECR_REPOSITORY_URI}:${RELEASE_SHA}" backend
+          docker push "${ECR_REPOSITORY_URI}:${RELEASE_SHA}"
+
+      # 今のタスク定義（Terraform が作ったもの）を元に、イメージと版（APP_VERSION）だけを変えた新しい版を登録し、サービスを切り替える。
+      # ECS が新しいタスクを起動し、ALB のヘルスチェック（/actuator/health）が通ってから古いタスクを止める。
+      # 起動しなければ、デプロイのサーキットブレーカーが前のタスク定義に戻す（このとき、ここでは失敗にする）
+      - name: ECS のバックエンドを新しい版にする
+        env:
+          IMAGE: ${{ vars.ECR_REPOSITORY_URI }}:${{ env.RELEASE_SHA }}
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+          TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY }}
+          CONTAINER: ${{ vars.ECS_CONTAINER_NAME || 'backend' }}
+        run: |
+          # 登録のときに渡せない項目（AWS が付けるもの）を除き、イメージと APP_VERSION を差し替える
+          aws ecs describe-task-definition --task-definition "${TASK_FAMILY}" --query taskDefinition \
+            | jq --arg c "${CONTAINER}" --arg image "${IMAGE}" --arg version "${RELEASE_SHA}" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                | .containerDefinitions |= map(
+                    if .name == $c then
+                      .image = $image
+                      | .environment = ([(.environment // [])[] | select(.name != "APP_VERSION")] + [{name: "APP_VERSION", value: $version}])
+                    else . end)' \
+            > /tmp/task-definition.json
+          task_definition_arn=$(aws ecs register-task-definition --cli-input-json file:///tmp/task-definition.json \
+            --query taskDefinition.taskDefinitionArn --output text)
+          echo "新しいタスク定義：${task_definition_arn}"
+
+          aws ecs update-service --cluster "${CLUSTER}" --service "${SERVICE}" \
+            --task-definition "${task_definition_arn}" --query service.serviceName --output text
+
+          # 新しいタスクが動き、古いタスクが止まるまで待つ（最大10分。15秒ごとに40回）
+          echo "切り替わるのを待ちます"
+          if ! aws ecs wait services-stable --cluster "${CLUSTER}" --services "${SERVICE}"; then
+            echo "::error::10分待っても切り替わりませんでした。ECS のサービスのイベントと、CloudWatch Logs のログを見てください"
+            aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" --query 'services[0].events[:10].message' --output yaml
+            exit 1
+          fi
+
+          # サーキットブレーカーが前の版に戻した場合も「安定」になるので、動いているのが新しい版かを確かめる
+          read -r primary_definition rollout_state < <(aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" \
+            --query "services[0].deployments[?status=='PRIMARY'] | [0].[taskDefinition, rolloutState]" --output text)
+          if [ "${primary_definition}" != "${task_definition_arn}" ] || [ "${rollout_state}" != "COMPLETED" ]; then
+            echo "::error::新しい版が起動せず、ECS が前の版に戻しました（${rollout_state}）。CloudWatch Logs のログを見てください"
+            aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" --query 'services[0].events[:10].message' --output yaml
+            exit 1
+          fi
+          echo "新しい版で動いています"
+
+      # ---------- フロントエンド ----------
+
+      - name: フロントエンドをビルドする
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # assets/ のファイル名には中身のハッシュが入る（中身が変わると名前も変わる）ので、ブラウザに長く保存させてよい。
+      # index.html は毎回最新を取りに来させる（新しい assets/ を指すため）。
+      # 古い assets/ は消さない（デプロイの直前に開いた画面が、まだ古いファイルを読みに来ることがあるため）
+      - name: S3 に置く
+        working-directory: frontend
+        env:
+          FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+        run: |
+          aws s3 sync dist/assets "s3://${FRONTEND_BUCKET}/assets" --cache-control 'public, max-age=31536000, immutable'
+          aws s3 sync dist "s3://${FRONTEND_BUCKET}" --exclude 'assets/*' --cache-control 'no-cache'
+
+      - name: CloudFront のキャッシュを消す
+        env:
+          DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          invalidation_id=$(aws cloudfront create-invalidation --distribution-id "${DISTRIBUTION_ID}" \
+            --paths '/index.html' '/' --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "${DISTRIBUTION_ID}" --id "${invalidation_id}"
+
+      - name: 結果をまとめる
+        run: |
+          {
+            echo "## デプロイしました"
+            echo ""
+            echo "- コミット：\`${RELEASE_SHA}\`"
+            echo "- URL：${{ vars.APP_URL }}"
+          } >> "${GITHUB_STEP_SUMMARY}"

@@ -11,7 +11,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 - 対象ユーザー: 受講生・個人。少人数での利用を想定するが、**複数ユーザーが使う前提**で設計する（誰でも新規登録でき、他のユーザーの投稿にいいね・コメントできる）
 - 技術スタック: React（Vite）+ Spring Boot（Java 25）+ PostgreSQL、DB アクセスは MyBatis、画像の保存先は AWS S3
 - データ保存先: 投稿・ユーザーなどのデータは PostgreSQL、投稿画像は AWS S3（DB には S3 のキーだけを保存）
-- インフラ: AWS（CloudFront / ALB / EC2 / RDS / S3）で構築する案を用意済み。AWS 上に構築するかは未定
+- インフラ: AWS（フロントエンドは S3 ＋ CloudFront、バックエンドは ALB ＋ ECS Fargate、DB は RDS）で構築する案を用意済み。実際に構築する時期は未定
 - 学習の目的: 認証・認可、CRUD、1対多・多対多（自己参照を含む）のリレーション、画像アップロード、AWS でのインフラ構築を一通り身につける
 - 実装状況: **要件定義・設計と、HTML / CSS / JavaScript のプロトタイプ（`prototype/`）まで完了**。本番の実装を「バックエンド → フロントエンド → 品質チェック → インフラ構築」の順で進めている。現在は、新規登録・ログイン・ログアウト、投稿（画像つき）・タイムライン表示・投稿の編集・削除・いいね・コメント・フォロー・ユーザーページ・ユーザー検索・プロフィール編集まで、バックエンドと画面ができている（進み具合は [要件定義.md 15章](./docs/要件定義.md#15-実装状況まとめ) を参照）
 
@@ -55,7 +55,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 | 画像の保存先 | AWS S3（AWS SDK for Java v2）。開発中は S3 互換の Adobe S3Mock（Docker） | AWS SDK 2.55.9 |
 | API 仕様書 | springdoc-openapi（OpenAPI 3.1・Swagger UI）。開発のときだけ公開 | springdoc-openapi 3.1.1 |
 | 性能テスト | k6（Docker Compose の profile `perf` で実行。インストール不要） | k6 1.0.0 |
-| インフラ（案） | AWS（CloudFront / ALB / EC2 / RDS / S3） | - |
+| インフラ（案） | AWS（CloudFront / S3 / ALB / ECS Fargate / ECR / RDS） | - |
 | ドキュメント | Markdown（図は Mermaid） | - |
 
 構成は隣の Taskmanagement（AI-java-study）にそろえている。
@@ -65,7 +65,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 ```
 ブラウザ ──HTTPS──> CloudFront ─┬─ /*        → S3（React のビルド成果物）
                                ├─ /images/* → S3（投稿画像）
-                               └─ /api/*    → ALB → EC2（Spring Boot）→ RDS（PostgreSQL）
+                               └─ /api/*    → ALB → ECS Fargate（Spring Boot のコンテナ）→ RDS（PostgreSQL）
                                                       └─ 画像のアップロード → S3
 ```
 
@@ -74,7 +74,7 @@ X に近い使い心地だが、**インプレッション数の表示やリツ�
 ## ディレクトリ構成
 
 ```
-backend/    … Spring Boot（Gradle）製バックエンド
+backend/    … Spring Boot（Gradle）製バックエンド（本番の ECS Fargate で動かすイメージの Dockerfile もここ）
 frontend/   … React + Vite 製フロントエンド
 docs/       … 要件定義書と設計ドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図・インフラ構成図など）
 prototype/  … HTML / CSS / JavaScript だけで作ったプロトタイプ（データは localStorage。本番の React + Spring Boot 版を作る前の画面・動きの確認用）
@@ -157,6 +157,7 @@ HTML / CSS / JavaScript だけで作ったプロトタイプで、全11機能（
 | [docs/パフォーマンステスト.md](./docs/パフォーマンステスト.md) | 性能テストの想定・合格ライン・大量データ・k6 のシナリオ・SQL の確認・手順・結果の記録 |
 | [docs/ログ・監視設計.md](./docs/ログ・監視設計.md) | ログの運用・監視・運用方針の考え方と、このアプリでの設計（SLO・出すログ・アラート・ランブック。Datadog を前提に、CloudWatch との比較も） |
 | [docs/インフラ構成図.md](./docs/インフラ構成図.md) | AWS で構築する場合の構成案・ネットワーク・権限・費用を抑える工夫 |
+| [docs/デプロイ.md](./docs/デプロイ.md) | GitHub Actions による AWS への自動デプロイの仕組み・インフラ構築のときに Terraform で用意するもの・GitHub に設定する変数・運用 |
 
 図はすべて [Mermaid](https://mermaid.js.org/) で書いている。GitHub ではそのまま図として表示される。VSCode では拡張機能「Markdown Preview Mermaid Support」を入れるとプレビューで表示できる。
 
@@ -175,6 +176,10 @@ Pull Request（main 向け）と main へのマージのたびに、[.github/wor
 - 網羅率と `npm audit` では失敗にしない（網羅率の決まりは、レポートを見て人が確かめる）
 - パフォーマンステスト（`perf/`・`npm run e2e:perf`）は CI では動かさない
 - かかる時間の目安：全体で約2分半（E2E の3つが同時に動くため）
+
+### デプロイ
+
+main で CI がすべて成功したら、[.github/workflows/deploy.yml](./.github/workflows/deploy.yml) が AWS へ自動でデプロイする（バックエンドの Docker イメージ（`backend/Dockerfile`）を ECR に置いて ECS Fargate を切り替え、そのあとフロントエンドを S3 に置く。新しい版が起動しなければ ECS が前の版に戻す）。リポジトリ変数 `DEPLOY_ENABLED` が `true` のときだけ動き、今はインフラを作っていないのでスキップになる。仕組み・インフラ構築のときに用意するもの・GitHub に設定する変数は [docs/デプロイ.md](./docs/デプロイ.md)。
 
 ## 開発ルール
 
