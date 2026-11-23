@@ -72,6 +72,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
           description: CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB
+            まで
         "429":
           content:
             application/json:
@@ -179,6 +186,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
           description: メールアドレス・@ユーザーID がすでに使われている（CONFLICT）
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB
+            まで
       summary: 新規登録する
       tags:
       - 1. 認証（F-01・F-02）
@@ -229,7 +243,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: 画像が大きすぎる（PAYLOAD_TOO_LARGE）
+          description: 画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB
+            まで
         "500":
           content:
             application/json:
@@ -388,7 +403,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: 画像が大きすぎる（PAYLOAD_TOO_LARGE）
+          description: 画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB
+            まで
         "500":
           content:
             application/json:
@@ -493,6 +509,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
           description: 投稿・ユーザーなどが見つからない（NOT_FOUND）
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: 画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB
+            まで
       security:
       - cookieAuth: []
       summary: コメントする
@@ -760,7 +783,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: 画像が大きすぎる（PAYLOAD_TOO_LARGE）
+          description: 画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB
+            まで
         "500":
           content:
             application/json:
