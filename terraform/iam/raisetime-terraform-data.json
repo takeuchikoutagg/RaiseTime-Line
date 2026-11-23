@@ -1,0 +1,90 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OwnBucketsOnly",
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::raisetime-*", "arn:aws:s3:::raisetime-*/*"]
+    },
+    {
+      "Sid": "ReadDatabases",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBSubnetGroups",
+        "rds:DescribeDBParameterGroups",
+        "rds:DescribeDBEngineVersions",
+        "rds:DescribeOrderableDBInstanceOptions",
+        "rds:DescribeDBSnapshots",
+        "rds:DescribeEvents"
+      ],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    },
+    {
+      "Sid": "CreateDatabaseOnlyWithProjectTag",
+      "Effect": "Allow",
+      "Action": ["rds:CreateDBInstance", "rds:CreateDBSubnetGroup"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-northeast-1",
+          "aws:RequestTag/Project": "raisetime"
+        }
+      }
+    },
+    {
+      "Sid": "ChangeOwnDatabase",
+      "Effect": "Allow",
+      "Action": [
+        "rds:ModifyDBInstance",
+        "rds:DeleteDBInstance",
+        "rds:RebootDBInstance",
+        "rds:StopDBInstance",
+        "rds:StartDBInstance",
+        "rds:ModifyDBSubnetGroup",
+        "rds:DeleteDBSubnetGroup",
+        "rds:AddTagsToResource",
+        "rds:RemoveTagsFromResource",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:rds:ap-northeast-1:*:db:raisetime-*",
+        "arn:aws:rds:ap-northeast-1:*:subgrp:raisetime-*"
+      ]
+    },
+    {
+      "Sid": "DatabasePasswordManagedByRds",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:RotateSecret",
+        "secretsmanager:TagResource",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-northeast-1:*:secret:rds!*"
+    },
+    {
+      "Sid": "AppParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:PutParameter",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:DeleteParameter",
+        "ssm:AddTagsToResource",
+        "ssm:RemoveTagsFromResource",
+        "ssm:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:ssm:ap-northeast-1:*:parameter/raisetime/*"
+    },
+    {
+      "Sid": "ListParameters",
+      "Effect": "Allow",
+      "Action": "ssm:DescribeParameters",
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    }
+  ]
+}

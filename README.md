@@ -78,6 +78,7 @@ backend/    … Spring Boot（Gradle）製バックエンド（本番の ECS Far
 frontend/   … React + Vite 製フロントエンド
 docs/       … 要件定義書と設計ドキュメント（要件定義・機能一覧・機能定義書・画面設計・ER図・インフラ構成図など）
 prototype/  … HTML / CSS / JavaScript だけで作ったプロトタイプ（データは localStorage。本番の React + Spring Boot 版を作る前の画面・動きの確認用）
+terraform/  … AWS のインフラ（Terraform）。iam/ に、Terraform を実行する IAM ユーザーに付ける最小限のポリシー
 perf/       … 性能テスト（k6 のシナリオ・大量データの SQL・EXPLAIN の SQL。入口は perf/run.sh）
 .claude/    … Claude Code 向けの設定・プロジェクトスキル
 .githooks/  … Git フック（main への直接プッシュを防ぐ pre-push）

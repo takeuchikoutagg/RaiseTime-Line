@@ -1,0 +1,105 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OwnLogGroups",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:DeleteRetentionPolicy",
+        "logs:PutMetricFilter",
+        "logs:DeleteMetricFilter",
+        "logs:TagResource",
+        "logs:UntagResource",
+        "logs:ListTagsForResource",
+        "logs:ListTagsLogGroup",
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents",
+        "logs:StartQuery"
+      ],
+      "Resource": [
+        "arn:aws:logs:ap-northeast-1:*:log-group:/ecs/raisetime-*",
+        "arn:aws:logs:ap-northeast-1:*:log-group:/ecs/raisetime-*:*"
+      ]
+    },
+    {
+      "Sid": "ReadLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:DescribeMetricFilters",
+        "logs:GetQueryResults"
+      ],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    },
+    {
+      "Sid": "OwnAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:DeleteAlarms",
+        "cloudwatch:TagResource",
+        "cloudwatch:UntagResource",
+        "cloudwatch:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:cloudwatch:*:*:alarm:raisetime-*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": ["ap-northeast-1", "us-east-1"]}}
+    },
+    {
+      "Sid": "ReadMetricsAndAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics"
+      ],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": ["ap-northeast-1", "us-east-1"]}}
+    },
+    {
+      "Sid": "OwnNotificationTopics",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:DeleteTopic",
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:Subscribe",
+        "sns:Unsubscribe",
+        "sns:ListSubscriptionsByTopic",
+        "sns:GetSubscriptionAttributes",
+        "sns:TagResource",
+        "sns:UntagResource",
+        "sns:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:sns:*:*:raisetime-*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": ["ap-northeast-1", "us-east-1"]}}
+    },
+    {
+      "Sid": "HealthChecks",
+      "Effect": "Allow",
+      "Action": [
+        "route53:CreateHealthCheck",
+        "route53:GetHealthCheck",
+        "route53:GetHealthCheckStatus",
+        "route53:UpdateHealthCheck",
+        "route53:DeleteHealthCheck",
+        "route53:ListHealthChecks",
+        "route53:ChangeTagsForResource",
+        "route53:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadCostAnomalyDetection",
+      "Effect": "Allow",
+      "Action": ["ce:GetAnomalyMonitors", "ce:GetAnomalySubscriptions", "ce:GetAnomalies"],
+      "Resource": "*"
+    }
+  ]
+}

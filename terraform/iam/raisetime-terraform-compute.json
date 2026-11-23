@@ -1,0 +1,107 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrRepository",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DeleteRepository",
+        "ecr:DescribeRepositories",
+        "ecr:DescribeImages",
+        "ecr:ListImages",
+        "ecr:BatchDeleteImage",
+        "ecr:PutLifecyclePolicy",
+        "ecr:GetLifecyclePolicy",
+        "ecr:DeleteLifecyclePolicy",
+        "ecr:PutImageScanningConfiguration",
+        "ecr:PutImageTagMutability",
+        "ecr:GetRepositoryPolicy",
+        "ecr:TagResource",
+        "ecr:UntagResource",
+        "ecr:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:ecr:ap-northeast-1:*:repository/raisetime-*"
+    },
+    {
+      "Sid": "EcsTaskDefinitions",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:RegisterTaskDefinition",
+        "ecs:DeregisterTaskDefinition",
+        "ecs:DescribeTaskDefinition",
+        "ecs:ListTaskDefinitions",
+        "ecs:DescribeClusters",
+        "ecs:ListClusters"
+      ],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    },
+    {
+      "Sid": "EcsClusterServiceAndTasks",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateCluster",
+        "ecs:DeleteCluster",
+        "ecs:UpdateCluster",
+        "ecs:UpdateClusterSettings",
+        "ecs:PutClusterCapacityProviders",
+        "ecs:CreateService",
+        "ecs:UpdateService",
+        "ecs:DeleteService",
+        "ecs:DescribeServices",
+        "ecs:ListServices",
+        "ecs:ListTasks",
+        "ecs:DescribeTasks",
+        "ecs:TagResource",
+        "ecs:UntagResource",
+        "ecs:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:ecs:ap-northeast-1:*:cluster/raisetime",
+        "arn:aws:ecs:ap-northeast-1:*:service/raisetime/*",
+        "arn:aws:ecs:ap-northeast-1:*:task/raisetime/*",
+        "arn:aws:ecs:ap-northeast-1:*:task-definition/raisetime-*:*",
+        "arn:aws:ecs:ap-northeast-1:*:container-instance/raisetime/*"
+      ]
+    },
+    {
+      "Sid": "ReadLoadBalancers",
+      "Effect": "Allow",
+      "Action": "elasticloadbalancing:Describe*",
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-northeast-1"}}
+    },
+    {
+      "Sid": "ManageOwnLoadBalancer",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateLoadBalancer",
+        "elasticloadbalancing:DeleteLoadBalancer",
+        "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:SetSecurityGroups",
+        "elasticloadbalancing:SetSubnets",
+        "elasticloadbalancing:CreateTargetGroup",
+        "elasticloadbalancing:DeleteTargetGroup",
+        "elasticloadbalancing:ModifyTargetGroup",
+        "elasticloadbalancing:ModifyTargetGroupAttributes",
+        "elasticloadbalancing:CreateListener",
+        "elasticloadbalancing:DeleteListener",
+        "elasticloadbalancing:ModifyListener",
+        "elasticloadbalancing:ModifyListenerAttributes",
+        "elasticloadbalancing:CreateRule",
+        "elasticloadbalancing:DeleteRule",
+        "elasticloadbalancing:ModifyRule",
+        "elasticloadbalancing:SetRulePriorities",
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:RemoveTags"
+      ],
+      "Resource": [
+        "arn:aws:elasticloadbalancing:ap-northeast-1:*:loadbalancer/app/raisetime-*/*",
+        "arn:aws:elasticloadbalancing:ap-northeast-1:*:targetgroup/raisetime-*/*",
+        "arn:aws:elasticloadbalancing:ap-northeast-1:*:listener/app/raisetime-*/*/*",
+        "arn:aws:elasticloadbalancing:ap-northeast-1:*:listener-rule/app/raisetime-*/*/*/*"
+      ]
+    }
+  ]
+}

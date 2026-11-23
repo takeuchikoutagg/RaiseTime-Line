@@ -1,0 +1,94 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrPullAndPush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage"
+      ],
+      "Resource": "arn:aws:ecr:ap-northeast-1:*:repository/raisetime-*"
+    },
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "WriteAppLogs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:ap-northeast-1:*:log-group:/ecs/raisetime-*:*"
+    },
+    {
+      "Sid": "ReadAppSecrets",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameters", "secretsmanager:GetSecretValue"],
+      "Resource": [
+        "arn:aws:ssm:ap-northeast-1:*:parameter/raisetime/*",
+        "arn:aws:secretsmanager:ap-northeast-1:*:secret:rds!*"
+      ]
+    },
+    {
+      "Sid": "DecryptAppSecrets",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "ssm.ap-northeast-1.amazonaws.com",
+            "secretsmanager.ap-northeast-1.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AppImages",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject"],
+      "Resource": [
+        "arn:aws:s3:::raisetime-images-*/posts/*",
+        "arn:aws:s3:::raisetime-images-*/avatars/*"
+      ]
+    },
+    {
+      "Sid": "DeployFrontend",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::raisetime-frontend-*", "arn:aws:s3:::raisetime-frontend-*/*"]
+    },
+    {
+      "Sid": "DeployBackend",
+      "Effect": "Allow",
+      "Action": ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DeployBackendService",
+      "Effect": "Allow",
+      "Action": ["ecs:UpdateService", "ecs:DescribeServices"],
+      "Resource": "arn:aws:ecs:ap-northeast-1:*:service/raisetime/*"
+    },
+    {
+      "Sid": "DeployPassTaskRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/raisetime-*",
+      "Condition": {"StringEquals": {"iam:PassedToService": "ecs-tasks.amazonaws.com"}}
+    },
+    {
+      "Sid": "DeployInvalidateCache",
+      "Effect": "Allow",
+      "Action": ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"],
+      "Resource": "*"
+    }
+  ]
+}
