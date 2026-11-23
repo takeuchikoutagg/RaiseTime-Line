@@ -11,6 +11,7 @@ import com.example.raisetime.logging.LogMasks;
 import com.example.raisetime.security.AuthCookies;
 import com.example.raisetime.security.AuthTokenIssuer;
 import com.example.raisetime.security.AuthUser;
+import com.example.raisetime.security.ClientIpResolver;
 import com.example.raisetime.security.LoginAttemptService;
 import com.example.raisetime.service.AuthService;
 import com.example.raisetime.service.EmailNormalizer;
@@ -52,16 +53,19 @@ public class AuthController {
     private final AuthTokenIssuer authTokenIssuer;
     private final AuthCookies authCookies;
     private final LoginAttemptService loginAttemptService;
+    private final ClientIpResolver clientIpResolver;
 
     public AuthController(AuthService authService, AuthenticationManager authenticationManager,
                           RefreshTokenService refreshTokenService, AuthTokenIssuer authTokenIssuer,
-                          AuthCookies authCookies, LoginAttemptService loginAttemptService) {
+                          AuthCookies authCookies, LoginAttemptService loginAttemptService,
+                          ClientIpResolver clientIpResolver) {
         this.authService = authService;
         this.authenticationManager = authenticationManager;
         this.refreshTokenService = refreshTokenService;
         this.authTokenIssuer = authTokenIssuer;
         this.authCookies = authCookies;
         this.loginAttemptService = loginAttemptService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Operation(summary = "CSRF トークンの Cookie（XSRF-TOKEN）を受け取る",
@@ -85,7 +89,7 @@ public class AuthController {
         LogContext.setUserId(user.getId());
         log.atInfo()
                 .addKeyValue(LogContext.EVENT, LogEvents.SIGNUP_SUCCEEDED)
-                .addKeyValue("client_ip", httpRequest.getRemoteAddr())
+                .addKeyValue("client_ip", clientIpResolver.resolve(httpRequest))
                 .log("新規登録しました（userId={}）", user.getId());
         return UserResponse.from(user);
     }
@@ -97,7 +101,7 @@ public class AuthController {
                               HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         String email = EmailNormalizer.normalize(request.email());
         // ログインの失敗が続いていたら、パスワードを確かめる前に 429 で止める（総当たり対策）
-        String ip = httpRequest.getRemoteAddr();
+        String ip = clientIpResolver.resolve(httpRequest);
         loginAttemptService.checkAllowed(email, ip);
         Authentication authentication;
         try {

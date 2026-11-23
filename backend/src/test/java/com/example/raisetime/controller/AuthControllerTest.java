@@ -23,6 +23,7 @@ import com.example.raisetime.security.AuthTokenIssuer;
 import com.example.raisetime.security.AuthUser;
 import com.example.raisetime.security.AuthUserDetailsService;
 import com.example.raisetime.security.AuthUserJwtAuthenticationConverter;
+import com.example.raisetime.security.ClientIpResolver;
 import com.example.raisetime.security.CookieBearerTokenResolver;
 import com.example.raisetime.security.ErrorResponseWriter;
 import com.example.raisetime.security.JsonAccessDeniedHandler;
@@ -79,7 +80,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, JwtConfig.class, GlobalExceptionHandler.class, AuthUserDetailsService.class,
         AccessTokenService.class, AuthUserJwtAuthenticationConverter.class, CookieBearerTokenResolver.class,
         AuthCookies.class, AuthTokenIssuer.class, ErrorResponseWriter.class, JsonAuthenticationEntryPoint.class,
-        JsonAccessDeniedHandler.class})
+        JsonAccessDeniedHandler.class, ClientIpResolver.class})
 class AuthControllerTest {
 
     private static final String PASSWORD = "password123";

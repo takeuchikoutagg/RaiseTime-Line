@@ -1,5 +1,6 @@
 package com.example.raisetime.logging;
 
+import com.example.raisetime.security.ClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +30,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     // ALB が数十秒ごとに呼ぶので、記録しない（量が多く、成功している間は役に立たない）
     private static final String HEALTH_PATH = "/actuator/health";
 
+    private final ClientIpResolver clientIpResolver;
+
+    public RequestLoggingFilter(ClientIpResolver clientIpResolver) {
+        this.clientIpResolver = clientIpResolver;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
@@ -50,7 +57,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    private static void logAccess(HttpServletRequest request, int status, long startedAt) {
+    private void logAccess(HttpServletRequest request, int status, long startedAt) {
         String path = path(request);
         if (path.startsWith(HEALTH_PATH)) {
             return;
@@ -62,7 +69,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 .addKeyValue("path", path)
                 .addKeyValue("status", status)
                 .addKeyValue("duration_ms", durationMs)
-                .addKeyValue("client_ip", request.getRemoteAddr())
+                .addKeyValue("client_ip", clientIpResolver.resolve(request))
                 .log("{} {} {} {}ms", request.getMethod(), path, status, durationMs);
     }
 
