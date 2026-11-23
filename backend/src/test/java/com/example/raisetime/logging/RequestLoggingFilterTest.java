@@ -2,6 +2,7 @@ package com.example.raisetime.logging;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import com.example.raisetime.security.ClientIpResolver;
 import com.example.raisetime.support.LogCapture;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RequestLoggingFilterTest {
 
-    private final RequestLoggingFilter filter = new RequestLoggingFilter();
+    // ヘッダーを使わない設定（開発・テストと同じ）。ヘッダーを使う設定は ClientIpResolverTest・ClientIpIntegrationTest
+    private final RequestLoggingFilter filter = new RequestLoggingFilter(new ClientIpResolver(""));
 
     private static MockHttpServletRequest request(String method, String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, uri);

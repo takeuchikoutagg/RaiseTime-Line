@@ -8,6 +8,7 @@ import com.example.raisetime.security.AuthCookies;
 import com.example.raisetime.security.AuthUser;
 import com.example.raisetime.security.AuthUserDetailsService;
 import com.example.raisetime.security.AuthUserJwtAuthenticationConverter;
+import com.example.raisetime.security.ClientIpResolver;
 import com.example.raisetime.security.CookieBearerTokenResolver;
 import com.example.raisetime.security.ErrorResponseWriter;
 import com.example.raisetime.security.JsonAccessDeniedHandler;
@@ -21,7 +22,9 @@ import org.springframework.context.annotation.Import;
 @TestConfiguration
 @Import({SecurityConfig.class, JwtConfig.class, GlobalExceptionHandler.class, AuthUserDetailsService.class,
         AccessTokenService.class, AuthUserJwtAuthenticationConverter.class, CookieBearerTokenResolver.class,
-        ErrorResponseWriter.class, JsonAuthenticationEntryPoint.class, JsonAccessDeniedHandler.class})
+        ErrorResponseWriter.class, JsonAuthenticationEntryPoint.class, JsonAccessDeniedHandler.class,
+        // RequestLoggingFilter（@WebMvcTest でも読み込まれる）が使う
+        ClientIpResolver.class})
 public class WebSecurityTestConfig {
 
     // ログイン中のユーザーとしてリクエストするための access_token Cookie
