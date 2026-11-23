@@ -40,7 +40,9 @@ public class ClientIpResolver {
             return Optional.empty();
         }
         int colon = value.lastIndexOf(':');
-        if (colon <= 0 || !isPort(value.substring(colon + 1))) {
+        // IPv6 のゾーン ID（fe80::1%eth0 の %eth0）は、自分のコンピューターの中だけで意味を持つもので、利用者の IP には付かない。
+        // ofLiteral は、動かすコンピューターにその名前のネットワークがあると読めてしまう（環境で結果が変わる）ので、先に断る
+        if (colon <= 0 || value.indexOf('%') >= 0 || !isPort(value.substring(colon + 1))) {
             return Optional.empty();
         }
         try {
