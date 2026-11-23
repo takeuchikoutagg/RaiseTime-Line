@@ -42,7 +42,7 @@ public class OpenApiConfig {
             403, "CSRF トークンが無い・正しくない、または権限がない（FORBIDDEN）",
             404, "投稿・ユーザーなどが見つからない（NOT_FOUND）",
             409, "メールアドレス・@ユーザーID がすでに使われている（CONFLICT）",
-            413, "画像が大きすぎる（PAYLOAD_TOO_LARGE）",
+            413, "画像・リクエストの本文が大きすぎる（PAYLOAD_TOO_LARGE）。画像つきの API 以外は、本文 64KB まで",
             429, "ログインの失敗が続いた（TOO_MANY_REQUESTS）。Retry-After ヘッダーの秒数のあとに試せる",
             500, "サーバーのエラー、画像の保存の失敗（INTERNAL_ERROR）");
 
@@ -90,7 +90,7 @@ public class OpenApiConfig {
         };
     }
 
-    // ログインが必要な API には Cookie 認証と 401 を、POST などには CSRF の 403 を足す。
+    // ログインが必要な API には Cookie 認証と 401 を、POST などには CSRF の 403 を、本文を受け取る API には 413 を足す。
     // どの API がログイン不要かは SecurityConfig と同じ一覧を使う
     @Bean
     public OpenApiCustomizer securityCustomizer() {
@@ -104,6 +104,10 @@ public class OpenApiConfig {
             }
             if (CSRF_METHODS.contains(method)) {
                 addError(op, 403);
+            }
+            // 本文の大きさの上限（RequestBodyLimitFilter・multipart の上限）
+            if (op.getRequestBody() != null) {
+                addError(op, 413);
             }
         }));
     }
